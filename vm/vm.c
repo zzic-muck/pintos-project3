@@ -95,19 +95,18 @@ spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	page->va = pg_round_down(va);
 	e = hash_find(&spt -> spt_hash, &page -> hash_elem);
 	free(page);
-	//project 3
 
 	return e != NULL ? hash_entry(e, struct page, hash_elem) : NULL;
+	//project 3
 }
 
 /* Insert PAGE into spt with validation. */
 bool
 spt_insert_page (struct supplemental_page_table *spt UNUSED,
 		struct page *page UNUSED) {
-	int succ = false;
-	/* TODO: Fill this function. */
-
-	return succ;
+	//project 3
+	return page_insert(&spt -> spt_hash, page);
+	//project 3
 }
 
 void
