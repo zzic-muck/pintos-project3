@@ -88,10 +88,16 @@ err:
 /* Find VA from spt and return page. On error, return NULL. */
 struct page *
 spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
-	struct page *page = NULL;
-	/* TODO: Fill this function. */
+	//project 3
+	struct page *page = (struct page *)malloc(sizeof(struct page));
+	struct hash_elem *e;
+	// /include/threads/vaddr.h에 있는 '주소를 인자로 가장 가까운 페이지 경계까지 내림하는 함수'
+	page->va = pg_round_down(va);
+	e = hash_find(&spt -> spt_hash, &page -> hash_elem);
+	free(page);
+	//project 3
 
-	return page;
+	return e != NULL ? hash_entry(e, struct page, hash_elem) : NULL;
 }
 
 /* Insert PAGE into spt with validation. */
