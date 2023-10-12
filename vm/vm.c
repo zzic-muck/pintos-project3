@@ -4,6 +4,7 @@
 #include "vm/vm.h"
 #include "vm/inspect.h"
 
+
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
 void
@@ -17,6 +18,30 @@ vm_init (void) {
 	/* DO NOT MODIFY UPPER LINES. */
 	/* TODO: Your code goes here. */
 }
+
+//project 3
+//page의 멤버인 hash_elem을 통해 page를 찾고, 그 page의 virtual address에 hash값을 넣는 함수(hash_hash_func 역할)
+unsigned page_hash_func (const struct hash_elem *p_, void *aux UNUSED) {
+	const struct page *p = hash_entry(p_, struct page, hash_elem);
+	return hash_bytes(&p->va, sizeof(p->va));
+}
+
+//해시 태이블 내 두 페이지 요소에 대해 페이지 주소 값을 비교하는 함수(hash_less_func 역할)
+static unsigned page_less_func(const struct hash_elem *a, const struct hash_elem *b, void *aux) {
+	const struct page *p_a = hash_entry(a, struct page, hash_elem);
+	const struct page *p_b = hash_entry(b, struct page, hash_elem);
+	return p_a -> va < p_b -> va;
+}
+
+//해당 페이지에 들어있는 hash_elem 구조체를 인자로 받은 해시 테이블에 삽입하는 함수
+bool page_insert(struct hash *h, struct page *p) {
+	if (!hash_insert (h, &p -> hash_elem)) {
+		return true;
+	} else {
+		return false;
+	}
+}
+//project 3
 
 /* Get the type of the page. This function is useful if you want to know the
  * type of the page after it will be initialized.
@@ -174,6 +199,9 @@ vm_do_claim_page (struct page *page) {
 /* Initialize new supplemental page table */
 void
 supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
+	//project 3
+	hash_init(&spt -> spt_hash, page_hash_func, page_less_func, NULL );
+	//project 3
 }
 
 /* Copy supplemental page table from src to dst */

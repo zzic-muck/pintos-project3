@@ -2,6 +2,9 @@
 #define VM_VM_H
 #include <stdbool.h>
 #include "threads/palloc.h"
+//project 3
+#include "lib/kernel/hash.h"
+//project 3
 
 enum vm_type {
 	/* page not initialized */
@@ -46,7 +49,12 @@ struct page {
 	struct frame *frame;   /* Back reference for frame */
 
 	/* Your implementation */
-
+	//project 3
+	//hash.h파일의 주석에 잠재적으로 hash table의 value가 될 수 있는 page는 모두 hash_elem을 멤버로 가져야 한다는 내용이 있다.
+	/* hash table을 위한 hash function이 돌아가기 위한 필수 멤버 */
+	struct hash_elem hash_elem;
+	bool writable;
+	//project 3
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */
 	union {
@@ -63,6 +71,9 @@ struct page {
 struct frame {
 	void *kva;
 	struct page *page;
+	//project 3
+	struct list_elem frame_elem;
+	//project 3
 };
 
 /* The function table for page operations.
@@ -84,40 +95,40 @@ struct page_operations {
 /* Representation of current process's memory space.
  * We don't want to force you to obey any specific design for this struct.
  * All designs up to you for this. */
-struct supplemental_page_table {
-	/* 
-struct supplemental_page_table은 PintOS에서 가상 메모리 관리를 위한 데이터 구조로 사용됩니다. 
+
+/* struct supplemental_page_table은 PintOS에서 가상 메모리 관리를 위한 데이터 구조로 사용됩니다. 
 이 구조체는 현재 프로세스의 가상 주소 공간을 나타내며, 각 가상 주소에 대한 페이지 정보를 관리하는 데 사용됩니다. 
-아래는 struct supplemental_page_table의 멤버 중 일부의 예시입니다:
+아래는 struct supplemental_page_table의 멤버 중 일부의 예시입니다: */
+struct supplemental_page_table {
 
-!struct hash_table *pages:
-pages는 해시 테이블로 가상 주소와 해당하는 페이지 정보를 매핑합니다.
-각 항목은 해시 함수를 사용하여 빠르게 접근할 수 있습니다.
+/*spt_hash는 해시 테이블로 가상 주소와 해당하는 페이지 정보를 매핑합니다.
+각 항목은 해시 함수를 사용하여 빠르게 접근할 수 있습니다.*/
+struct hash *spt_hash;
 
-!struct lock *lock:
-lock은 보충 페이지 테이블에 대한 동시 액세스를 관리하는 데 사용됩니다. 다중 스레드 환경에서 안전한 접근을 보장합니다.
+/* lock은 보충 페이지 테이블에 대한 동시 액세스를 관리하는 데 사용됩니다. 다중 스레드 환경에서 안전한 접근을 보장합니다.*/
+// struct lock *lock;
 
-struct file *executable_file:
-현재 실행 중인 프로세스와 관련된 실행 파일에 대한 포인터입니다. 이를 통해 실행 파일의 내용을 메모리에 로드할 때 사용됩니다.
+/* 현재 프로세스의 가상 주소 공간이 읽기 쓰기 가능한지 여부를 나타내는 플래그입니다. */
+bool writable;
 
-!bool writable:
-현재 프로세스의 가상 주소 공간이 읽기 쓰기 가능한지 여부를 나타내는 플래그입니다.
+/* 현재 실행 중인 프로세스와 관련된 실행 파일에 대한 포인터입니다. 이를 통해 실행 파일의 내용을 메모리에 로드할 때 사용됩니다.*/
+//struct file *executable_file;
 
-size_t stack_size:
-스택 영역의 크기를 나타내는 변수로, 스택 확장 및 스택 오버플로우 검출에 사용됩니다.
+/* 스택 영역의 크기를 나타내는 변수로, 스택 확장 및 스택 오버플로우 검출에 사용됩니다.*/
+//size_t stack_size;
 
-void *stack_limit:
-스택 영역의 제한 주소를 나타내는 포인터로, 스택 확장 시에 스택 경계를 검사하는 데 사용됩니다.
+/* 스택 영역의 제한 주소를 나타내는 포인터로, 스택 확장 시에 스택 경계를 검사하는 데 사용됩니다.*/
+//void *stack_limit;
 
-size_t code_size:
-코드 세그먼트의 크기를 나타내는 변수로, 코드 세그먼트의 로딩 및 언로딩에 사용됩니다.
+/* 코드 세그먼트의 크기를 나타내는 변수로, 코드 세그먼트의 로딩 및 언로딩에 사용됩니다.*/
+//size_t code_size;
 
-void *code_limit:
-코드 세그먼트의 제한 주소를 나타내는 포인터로, 코드 접근 및 검사에 사용됩니다.
+/* 코드 세그먼트의 제한 주소를 나타내는 포인터로, 코드 접근 및 검사에 사용됩니다.*/
+//void *code_limit;
 
-기타 필요한 정보:
-프로세스 관련 정보, 실행 파일의 메타데이터, 페이지 교체 정책에 관한 정보 등을 보관하는 데 사용될 수 있는 다양한 멤버가 포함될 수 있습니다.
-	 */
+/*기타 필요한 정보: 
+프로세스 관련 정보, 실행 파일의 메타데이터, 페이지 교체 정책에 관한 정보 등을 보관하는 데 사용될 수 있는 다양한 멤버가 포함될 수 있습니다.*/
+
 };
 
 #include "threads/thread.h"
@@ -129,6 +140,12 @@ struct page *spt_find_page (struct supplemental_page_table *spt,
 		void *va);
 bool spt_insert_page (struct supplemental_page_table *spt, struct page *page);
 void spt_remove_page (struct supplemental_page_table *spt, struct page *page);
+
+//project 3
+unsigned page_hash_func (const struct hash_elem *p_, void *aux UNUSED);
+static unsigned page_less_func (const struct hash_elem *a, const struct hash_elem *b, void *aux);
+bool page_insert(struct hash *h, struct page *p);
+//project 3
 
 void vm_init (void);
 bool vm_try_handle_fault (struct intr_frame *f, void *addr, bool user,
