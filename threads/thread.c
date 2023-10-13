@@ -267,6 +267,7 @@ void thread_wake(int64_t current_tick) {
 struct thread *thread_current(void) {
     struct thread *t = running_thread();
 
+
     /* running_thread()의 wrapper로, 스택 오버플로우 여부 등을 확인 */
     ASSERT(is_thread(t));
     ASSERT(t->status == THREAD_RUNNING);

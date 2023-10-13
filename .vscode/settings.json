@@ -58,6 +58,7 @@
         "list.h": "c",
         "intrinsic.h": "c",
         "debug.h": "c",
-        "init.h": "c"
+        "init.h": "c",
+        "vm.h": "c"
     }
 }

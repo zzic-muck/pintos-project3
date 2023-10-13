@@ -1,3 +1,4 @@
+#define VM
 #include "userprog/process.h"
 #include "filesys/directory.h"
 #include "filesys/file.h"
@@ -30,6 +31,16 @@ static bool load(const char *file_name, struct intr_frame *if_);
 static void initd(void *f_name);
 static void __do_fork(void *);
 
+struct lazy_load_aux {
+    struct file *file;
+    off_t ofs;
+    uint8_t *upage;
+    uint32_t read_bytes;
+    uint32_t zero_bytes;
+    bool writable;
+};
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //////////////////////////// Process Initiation ////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,7 +48,6 @@ static void __do_fork(void *);
 /* 최초의 유저 프로세스인 initd를 포함한 모든 프로세스를 초기화 하는 공통 함수 */
 static void process_init(void) {
     struct thread *current = thread_current();
-
     /* (중요) PintOS는 켜지는 시점부터 thread에서 시작되기에, 그 child가 생길 가능성을 고려해서 thread.c의 thread_create()에 모든 것을 옮겨둠 */
 }
 
@@ -65,7 +75,8 @@ tid_t process_create_initd(const char *file_name) {
         palloc_free_page(fn_copy);
         return TID_ERROR;
     }
-    // palloc_free_page(fn_copy);
+
+
     return tid;
 }
 
@@ -244,13 +255,13 @@ int process_exec(void *f_name) {
        load() 함수에서 _if의 값들을 마저 채우고 현재 스레드로 적용함. */
 
     success = load(file_name, &_if);
-    printf("process_exec %d\n", success);
     palloc_free_page(file_name);
     if (!success)
         return -1;
-
     /* 새로운 프로세스로 전환해서 작업 시작 */
+
     do_iret(&_if);
+
     NOT_REACHED();
 }
 
@@ -321,6 +332,10 @@ void process_exit(void) {
     //     }
     //     cnt++;
     // }
+
+    if(curr->exec_file){
+        file_close(curr->exec_file);
+    }
 
     /* 부모의 wait() 대기 ; 부모가 wait을 해줘야 죽을 수 있음 (한계) */
     if (curr->parent_is) {
@@ -537,7 +552,6 @@ static bool load(const char *file_name, struct intr_frame *if_) {
                     read_bytes = 0;
                     zero_bytes = ROUND_UP(page_offset + phdr.p_memsz, PGSIZE);
                 }
-                printf("load_segment\n");
                 if (!load_segment(file, file_page, (void *)mem_page, read_bytes, zero_bytes, writable))
                     goto done;
             } else
@@ -560,8 +574,13 @@ static bool load(const char *file_name, struct intr_frame *if_) {
     success = true;
 
 done:
+    if(!success) {
+        file_close(file);
+    } else {
+        t->exec_file = file;
+    }
     /* 실행이 끝나고 나면 성공/실패 여부와 무관하게 아래 코드 실행 */
-    file_close(file);
+    // file_close(file);
     return success;
 }
 
@@ -760,6 +779,54 @@ static bool lazy_load_segment(struct page *page, void *aux) {
     /* TODO: Load the segment from the file */
     /* TODO: This called when the first page fault occurs on address VA. */
     /* TODO: VA is available when calling this function. */
+    ASSERT(page->frame->kva != NULL);
+    
+    struct lazy_load_aux *aux_ = aux;
+    struct file *file = aux_->file;
+    off_t ofs = aux_->ofs;
+    uint32_t read_bytes = aux_->read_bytes;
+    uint32_t zero_bytes = aux_->zero_bytes;
+    bool writable = aux_->writable;
+
+    // printf("lazy_load_segment\n");
+    file_seek(file, ofs);
+
+    // printf("file: %p, ofs: %d, read_bytes: %d\n", file, ofs, read_bytes);
+    // while (read_bytes > 0 || zero_bytes > 0) {
+        /* Do calculate how to fill this page.
+         * We will read PAGE_READ_BYTES bytes from FILE
+         * and zero the final PAGE_ZERO_BYTES bytes. */
+
+        // size_t page_read_bytes = read_bytes;
+        // size_t page_zero_bytes = zero_bytes;
+
+        /* Get a page of memory. */
+
+        if (page == NULL) {
+            printf("page is NULL\n");
+            return false;
+        }
+
+        /* Load this page. */
+        if (file_read(file,page->frame->kva, read_bytes) != (int)read_bytes) {
+            printf("file_read fail\n");
+            vm_dealloc_page(page);
+            return false;
+        }
+
+        /* Add the page to the process's address space. */
+        // if (!vm_claim_page(page->va)) {
+        //     vm_dealloc_page(page);
+        //     return false;
+        // }
+
+        /* Advance. */
+        // read_bytes -= page_read_bytes;
+        // zero_bytes -= page_zero_bytes;
+        // page += PGSIZE;
+        // ofs += PGSIZE;
+    // }
+    return true;
 }
 
 /* Loads a segment starting at offset OFS in FILE at address
@@ -781,6 +848,8 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t 
     ASSERT(pg_ofs(upage) == 0);
     ASSERT(ofs % PGSIZE == 0);
 
+    off_t read_start = ofs;
+
     while (read_bytes > 0 || zero_bytes > 0) {
         /* Do calculate how to fill this page.
          * We will read PAGE_READ_BYTES bytes from FILE
@@ -789,16 +858,24 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t 
         size_t page_zero_bytes = PGSIZE - page_read_bytes;
         /* TODO: Set up aux to pass information to the lazy_load_segment. */
 
-        void *aux = NULL;
+        struct lazy_load_aux *aux = malloc(sizeof(struct lazy_load_aux));
+        
+        aux->file = file;
+        aux->ofs = read_start;
+        aux->read_bytes = page_read_bytes;
+        aux->zero_bytes = page_zero_bytes;
+        aux->writable = writable;
+
+        // printf("load segment; file: %p, ofs: %d, read_bytes: %d\n", file, ofs, page_read_bytes);
         if (!vm_alloc_page_with_initializer(VM_ANON, upage, writable, lazy_load_segment, aux))
             return false;
-
-        /* Advance. */
+                /* Advance. */
+        
+        read_start += page_read_bytes;
         read_bytes -= page_read_bytes;
         zero_bytes -= page_zero_bytes;
         upage += PGSIZE;
     }
-    printf("load_segment\n");
     return true;
 }
 

@@ -117,6 +117,8 @@ struct thread {
     struct lock fd_lock;    // Allocate_fd()에서 사용되는 락, per thread
     struct file **fd_table; // File Descriptor Table ; init_thread에서 한번 초기화
 
+    struct file* exec_file; // 현재 프로세스의 실행 파일
+
     /* process_wait() 및 exit()을 위해서 추가된 멤버 */
 
     struct semaphore fork_sema;       // Parent의 process_fork와 Child의 _do_fork 사이에서 활동 (포크 완료 여부)
