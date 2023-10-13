@@ -27,6 +27,7 @@ enum vm_type {
 #include "vm/uninit.h"
 #include "vm/anon.h"
 #include "vm/file.h"
+#include "include/lib/kernel/hash.h"
 #ifdef EFILESYS
 #include "filesys/page_cache.h"
 #endif
@@ -44,6 +45,8 @@ struct page {
 	const struct page_operations *operations;
 	void *va;              /* Address in terms of user space */
 	struct frame *frame;   /* Back reference for frame */
+	struct hash_elem hash_elem;
+	bool writable;
 
 	/* Your implementation */
 
@@ -61,8 +64,9 @@ struct page {
 
 /* The representation of "frame" */
 struct frame {
-	void *kva;
+	void *kva;	// kernel virtual address
 	struct page *page;
+	struct list_elem frame_elem;	// frame_table에 구조체 담기 위해 선언
 };
 
 /* The function table for page operations.
@@ -85,6 +89,7 @@ struct page_operations {
  * We don't want to force you to obey any specific design for this struct.
  * All designs up to you for this. */
 struct supplemental_page_table {
+	struct hash *hash_table;
 };
 
 #include "threads/thread.h"

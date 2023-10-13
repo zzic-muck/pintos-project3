@@ -39,7 +39,7 @@
 #endif
 
 /* Page-map-level-4 with kernel mappings only. */
-uint64_t *base_pml4;
+uint64_t *base_pml4;	// 현재 실행 중인 프로세스의 
 
 #ifdef FILESYS
 /* -f: Format the file system? */
