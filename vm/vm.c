@@ -271,7 +271,6 @@ vm_do_claim_page (struct page *page) {
 
 	if (!pml4_set_page (t -> pml4, page -> va, frame->kva, page -> writable))
 		return false;
-	printf("vm_do_claim_page\n");
 	return swap_in (page, frame->kva);
 }
 
