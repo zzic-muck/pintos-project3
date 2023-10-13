@@ -41,6 +41,8 @@ bool page_insert(struct hash *h, struct page *p) {
 		return false;
 	}
 }
+//frame 구조체를 관리하는 하나의 frame table
+struct list frame_table;
 //project 3
 
 /* Get the type of the page. This function is useful if you want to know the
@@ -140,11 +142,22 @@ vm_evict_frame (void) {
  * space.*/
 static struct frame *
 vm_get_frame (void) {
-	struct frame *frame = NULL;
-	/* TODO: Fill this function. */
-
+	struct frame *frame = (struct frame *)malloc(sizeof(struct frame));
+	
 	ASSERT (frame != NULL);
 	ASSERT (frame->page == NULL);
+
+	//project 3
+	frame -> kva = palloc_get_page(PAL_USER);
+	if (frame -> kva == NULL) {
+		frame = vm_evict_frame();
+		frame -> page = NULL;
+		return frame;
+	}
+	list_push_back(&frame_table, &frame->frame_elem);
+	frame->page = NULL;
+	//project 3
+	
 	return frame;
 }
 
