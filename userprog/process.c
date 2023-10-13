@@ -351,7 +351,7 @@ static void process_cleanup(void) {
        다음 과정을 통해서 현재 프로세스의 pml4를 삭제하고 Kernel 정보만 남아있는 상태로 전환함 (User-side만 비우는 작업). */
     if (pml4 != NULL) {
 
-        // plm4가 이미 NULL이라면 pml4가 없거나 이미 삭제되었기 때문에 별도의 작업이 필요 없음
+        // pml4가 이미 NULL이라면 pml4가 없거나 이미 삭제되었기 때문에 별도의 작업이 필요 없음
         curr->pml4 = NULL;   // 현재 프로세스 (스레드)의 pml4 (User-side Mapping)를 NULL로 바꾸고,
         pml4_activate(NULL); // NULL 값으로 CPU의 Active pml4를 비우는 작업 (Kernel-side는 별도로 그대로 유지됨)
         pml4_destroy(pml4);  // 마지막으로 pml4를 destroy()해서 관련된 메모리 Alloc들을 전부 풀어주는 과정
