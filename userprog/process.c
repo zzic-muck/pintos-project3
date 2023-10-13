@@ -244,7 +244,7 @@ int process_exec(void *f_name) {
        load() 함수에서 _if의 값들을 마저 채우고 현재 스레드로 적용함. */
 
     success = load(file_name, &_if);
-
+    printf("process_exec %d\n", success);
     palloc_free_page(file_name);
     if (!success)
         return -1;
@@ -483,8 +483,6 @@ static bool load(const char *file_name, struct intr_frame *if_) {
     /* 실제 Executable File을 로딩 */
 
     file = filesys_open(parsed_file_name);
-
-    // printf("CUSTOM MESSAGE : file_name : %s\n", parsed_file_name);
     if (file == NULL) {
         printf("load: %s: open failed\n", parsed_file_name);
         goto done;
@@ -539,6 +537,7 @@ static bool load(const char *file_name, struct intr_frame *if_) {
                     read_bytes = 0;
                     zero_bytes = ROUND_UP(page_offset + phdr.p_memsz, PGSIZE);
                 }
+                printf("load_segment\n");
                 if (!load_segment(file, file_page, (void *)mem_page, read_bytes, zero_bytes, writable))
                     goto done;
             } else
@@ -707,7 +706,6 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t 
             palloc_free_page(kpage);
             return false;
         }
-
         /* Advance. */
         read_bytes -= page_read_bytes;
         zero_bytes -= page_zero_bytes;
@@ -789,8 +787,8 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t 
          * and zero the final PAGE_ZERO_BYTES bytes. */
         size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
         size_t page_zero_bytes = PGSIZE - page_read_bytes;
-
         /* TODO: Set up aux to pass information to the lazy_load_segment. */
+
         void *aux = NULL;
         if (!vm_alloc_page_with_initializer(VM_ANON, upage, writable, lazy_load_segment, aux))
             return false;
@@ -800,6 +798,7 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t 
         zero_bytes -= page_zero_bytes;
         upage += PGSIZE;
     }
+    printf("load_segment\n");
     return true;
 }
 
@@ -812,6 +811,14 @@ static bool setup_stack(struct intr_frame *if_) {
      * TODO: If success, set the rsp accordingly.
      * TODO: You should mark the page is stack. */
     /* TODO: Your code goes here */
+
+    if (vm_alloc_page(VM_ANON, stack_bottom, true)) {
+
+        if(vm_claim_page(stack_bottom)){
+            if_->rsp = USER_STACK;
+            success = true;
+        }
+    }
 
     return success;
 }

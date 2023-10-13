@@ -30,6 +30,7 @@ enum vm_type {
 #include "vm/uninit.h"
 #include "vm/anon.h"
 #include "vm/file.h"
+#include "include/lib/kernel/hash.h"
 #ifdef EFILESYS
 #include "filesys/page_cache.h"
 #endif
@@ -49,12 +50,14 @@ struct page {
 	struct frame *frame;   /* Back reference for frame */
 
 	/* Your implementation */
+
 	//project 3
 	//hash.h파일의 주석에 잠재적으로 hash table의 value가 될 수 있는 page는 모두 hash_elem을 멤버로 가져야 한다는 내용이 있다.
 	/* hash table을 위한 hash function이 돌아가기 위한 필수 멤버 */
 	struct hash_elem hash_elem;
 	bool writable;
 	//project 3
+
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */
 	union {
@@ -74,6 +77,7 @@ struct frame {
 	//project 3
 	struct list_elem frame_elem;
 	//project 3
+
 };
 
 /* The function table for page operations.
@@ -100,6 +104,7 @@ struct page_operations {
 이 구조체는 현재 프로세스의 가상 주소 공간을 나타내며, 각 가상 주소에 대한 페이지 정보를 관리하는 데 사용됩니다. 
 아래는 struct supplemental_page_table의 멤버 중 일부의 예시입니다: */
 struct supplemental_page_table {
+
 
 /*spt_hash는 해시 테이블로 가상 주소와 해당하는 페이지 정보를 매핑합니다.
 각 항목은 해시 함수를 사용하여 빠르게 접근할 수 있습니다.*/
