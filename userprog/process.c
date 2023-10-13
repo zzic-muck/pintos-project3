@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#define VM
 #ifdef VM
 #include "vm/vm.h"
 #endif

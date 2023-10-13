@@ -84,21 +84,20 @@ hash_destroy (struct hash *h, hash_action_func *destructor) {
 	free (h->buckets);
 }
 
-/* Inserts NEW into hash table H and returns a null pointer, if
-   no equal element is already in the table.
-   If an equal element is already in the table, returns it
-   without inserting NEW. */
+/* NEW를 해시 테이블 h에 삽입하고, 이미 테이블에 동일한 요소가 없다면 널 포인터를 반환합니다.
+ * 이미 테이블에 동일한 요소가 있는 경우, NEW를 삽입하지 않고 해당 요소를 반환합니다. */
 struct hash_elem *
 hash_insert (struct hash *h, struct hash_elem *new) {
-	struct list *bucket = find_bucket (h, new);
-	struct hash_elem *old = find_elem (h, bucket, new);
+	struct list *bucket = find_bucket (h, new);	// 새로운 요소 new가 속해야 할 버킷 찾음
+	// old는 이미 존재하는 동일한 요소
+	struct hash_elem *old = find_elem (h, bucket, new);	// new가 버킷 내에 이미 있는지 확인
 
 	if (old == NULL)
-		insert_elem (h, bucket, new);
+		insert_elem (h, bucket, new); // new 버킷에 삽입
 
 	rehash (h);
 
-	return old;
+	return old;	// old가 null이 아니면 삽입 실패
 }
 
 /* Inserts NEW into hash table H, replacing any equal element
