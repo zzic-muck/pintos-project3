@@ -249,12 +249,13 @@ vm_get_frame (void) {
 	ASSERT (frame != NULL);
 	ASSERT (frame->page == NULL);
 	//frame의 kva에 user pool의 페이지 할당
-	frame -> kva = palloc_get_page(PAL_USER);
+	//anonymous case를 위해 일단 PAL_ZERO
+	frame -> kva = palloc_get_page(PAL_USER | PAL_ZERO);
 	//할당이 안 됐을 때 예외처리
 	if (frame -> kva == NULL) {
 		//user pool 이 다 찼다는 뜻이므로 evict_frame 으로 빈자리를 만든다.
 		frame = vm_evict_frame();
-		frame -> page = NULL;
+		frame ->page = NULL;
 		return frame;
 	}
 	//frame_table linked list에 frame_elem 추가
