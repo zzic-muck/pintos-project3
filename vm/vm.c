@@ -190,16 +190,10 @@ vm_get_victim (void) {
 	// 2. If accessed, clear the accessed bit.
 	// 3. If not accessed, set this frame as the victim.
 
-	for (start = e; start != list_end(&frame_table); start = list_next(start)) {
-		victim = list_entry(start, struct frame, frame_elem);
-		if (pml4_is_accessed(t -> pml4, victim -> page ->va)) {
-			pml4_set_accessed(t -> pml4, victim -> page -> va, 0);
-		} else {
-			return victim;
-		}
-	}
-
-	for (start = list_begin(&frame_table); start != e; start = list_next(start)) {
+	//clock policy
+	//list 맨 뒤에서부터 하나씩 accessed bit 를 확인하면서 할당되었다면(1이라면) 이를 0으로 변경
+	//할당되지 않았다면 (이미 0이라면) 이를 반환
+	for (start = list_end(&frame_table); start != list_begin(&frame_table); start = list_prev(start)) {
 		victim = list_entry(start, struct frame, frame_elem);
 		if (pml4_is_accessed(t -> pml4, victim -> page -> va)) {
 			pml4_set_accessed(t -> pml4, victim -> page -> va, 0);
@@ -207,6 +201,24 @@ vm_get_victim (void) {
 			return victim;
 		}
 	}
+
+	// for (start = e; start != list_end(&frame_table); start = list_next(start)) {
+	// 	victim = list_entry(start, struct frame, frame_elem);
+	// 	if (pml4_is_accessed(t -> pml4, victim -> page -> va)) {
+	// 		pml4_set_accessed(t -> pml4, victim -> page -> va, 0);
+	// 	} else {
+	// 		return victim;
+	// 	}
+	// }
+
+	// for (start = list_begin(&frame_table); start != e; start = list_next(start)) {
+	// 	victim = list_entry(start, struct frame, frame_elem);
+	// 	if (pml4_is_accessed(t -> pml4, victim -> page -> va)) {
+	// 		pml4_set_accessed(t -> pml4, victim -> page -> va, 0);
+	// 	} else {
+	// 		return victim;
+	// 	}
+	// }
 	
 	return victim;
 }
@@ -296,7 +308,6 @@ vm_claim_page (void *va UNUSED) {
 		return false;
 	}
 	
-
 	return vm_do_claim_page (page);
 	//project 3
 }
