@@ -3,6 +3,11 @@
 #include "threads/malloc.h"
 #include "vm/vm.h"
 #include "vm/inspect.h"
+#include "lib/kernel/hash.h"
+#include "threads/mmu.h"
+
+/* frame 구조체를 관리하는 하나의 frame_table */
+struct list frame_table;
 
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
@@ -60,23 +65,41 @@ err:
 	return false;
 }
 
-/* Find VA from spt and return page. On error, return NULL. */
+/* Find VA from spt and return page. On error, return NULL.
+ * 인자로 받은 va에 해당하는 page num을 검색하여 page num을 추출하는 함수 */
 struct page *
 spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
-	struct page *page = NULL;
-	/* TODO: Fill this function. */
+	// 더미 페이지 생성 및 초기화
+	struct page *dumy_page = (struct page*)malloc(sizeof(struct page));
+	dumy_page->va = va;
 
-	return page;
+	// 해시 함수를 사용하여 페이지 검색
+	struct hash_elem *e = hash_find(&spt->hash_table, &dumy_page->hash_elem);
+	free(dumy_page);	// 할당 해제
+
+	// 페이지를 찾았으면 페이지 포인터 반환
+	if (e)
+		return hash_entry(e, struct page, hash_elem);
+	else
+		return NULL;
 }
 
-/* Insert PAGE into spt with validation. */
+/* Insert PAGE into spt with validation. 
+ * spt에 인자로 들어온 페이지를 삽입시키는 함수 
+ * 삽입에 성공하면 true, 실패하면 false */
 bool
-spt_insert_page (struct supplemental_page_table *spt UNUSED,
-		struct page *page UNUSED) {
+spt_insert_page (struct supplemental_page_table *spt,   struct page *page) {
 	int succ = false;
-	/* TODO: Fill this function. */
+	if (!spt || !page)
+		return succ;
 
-	return succ;
+	// 해시 함수를 사용하여 페이지를 테이블에 삽입
+	struct hash_elem *exit_elem = hash_insert(&spt->hash_table, &page->hash_elem);
+
+	if (exit_elem)
+		return succ;	// 이미 페이지가 테이블에 존재하는 경우
+	else
+		return !succ;	// 페이지가 테이블에 존재 X -> 삽입 성공
 }
 
 void
@@ -85,37 +108,60 @@ spt_remove_page (struct supplemental_page_table *spt, struct page *page) {
 	return true;
 }
 
-/* Get the struct frame, that will be evicted. */
+/* 대체될 구조체 프레임을 가져옵니다. (희생자 찾음) */
 static struct frame *
 vm_get_victim (void) {
-	struct frame *victim = NULL;
-	 /* TODO: The policy for eviction is up to you. */
-
+	struct frame *victim = list_pop_front(&frame_table);
 	return victim;
 }
 
-/* Evict one page and return the corresponding frame.
- * Return NULL on error.*/
+/* 한 페이지를 대체하고 해당 프레임을 반환합니다. 
+ * 에러 발생 시 NULL을 반환합니다. 
+ * 스왑 대상: 프레임이 아닌 프레임과 연결된 페이지!!! */
 static struct frame *
 vm_evict_frame (void) {
-	struct frame *victim UNUSED = vm_get_victim ();
-	/* TODO: swap out the victim and return the evicted frame. */
+	struct frame *victim = vm_get_victim (); // 하나의 프레임 받아옴
 
-	return NULL;
+	if (!victim)
+		return NULL;
+
+	swap_out(victim->page);	// 페이지 스왑 아웃
+	return victim;
 }
 
-/* palloc() and get frame. If there is no available page, evict the page
- * and return it. This always return valid address. That is, if the user pool
- * memory is full, this function evicts the frame to get the available memory
- * space.*/
+/* palloc() 함수는 페이지 프레임을 할당하고 해당 프레임을 반환합니다.
+ * 사용 가능한 페이지가 없는 경우 페이지를 대체하고 해당 페이지를 반환합니다.
+ * 이 함수는 항상 유효한 주소를 반환합니다.
+ * 다시 말해, 유저풀 메모리가 가득 차 있는 경우 사용 가능한 메모리 공간을 확보하기 위해 페이지를 대체합니다.*/
 static struct frame *
 vm_get_frame (void) {
-	struct frame *frame = NULL;
-	/* TODO: Fill this function. */
+	void *kva = palloc_get_page(PAL_USER);	// 물리 메모리 할당 후 그 위치의 kva 반환
+	struct frame *new_frame = malloc(sizeof(struct frame));	// 할당하기 위한 프레임 생성
 
-	ASSERT (frame != NULL);
-	ASSERT (frame->page == NULL);
-	return frame;
+	ASSERT (new_frame != NULL);
+	ASSERT (new_frame->page == NULL);
+
+	// user pool로부터 물리 메모리 할당 실패 시
+	if (!kva) {
+		// 페이지 swap out -> 삭제할 페이지 디스크로 이동
+		struct frame *evicted_frame = vm_evict_frame();
+
+		if (!evicted_frame)
+			PANIC("희생 페이지 업슴ㅋ");
+		
+		// 할당 받은 frame을 frame_table에 추가
+		list_push_back(&frame_table, &evicted_frame->frame_elem);
+
+		// 할당된 프레임에 연결
+		evicted_frame->kva = kva;
+		return evicted_frame;
+	}
+
+	if (!new_frame)
+		PANIC("새로운 프레임을 위한 물리 메모리를 할당할 수 업슴ㅋ");
+	
+	new_frame->kva = kva;
+	return new_frame;
 }
 
 /* Growing the stack. */
@@ -148,11 +194,15 @@ vm_dealloc_page (struct page *page) {
 	free (page);
 }
 
-/* Claim the page that allocate on VA. */
+/* Claim the page that allocate on VA.
+ * 물리 프레임과 연결할 페이지를 spt를 통해서 찾아준 뒤, do_claim() 호출 */
 bool
 vm_claim_page (void *va UNUSED) {
-	struct page *page = NULL;
-	/* TODO: Fill this function */
+	struct page *page = spt_find_page(&thread_current()->spt, va);
+
+	// 페이지 찾을 수 없는 경우
+	if (!page)
+		return false;
 
 	return vm_do_claim_page (page);
 }
@@ -160,26 +210,51 @@ vm_claim_page (void *va UNUSED) {
 /* Claim the PAGE and set up the mmu. */
 static bool
 vm_do_claim_page (struct page *page) {
-	struct frame *frame = vm_get_frame ();
+	// 페이지가 유효하지 않거나, 페이지가 이미 차지된 경우
+	if (!page || page->frame)
+		return false;
+	
+	struct frame *frame = vm_get_frame ();	// 새 프레임 가져오기
+	struct thread *curr = thread_current();
 
 	/* Set links */
 	frame->page = page;
 	page->frame = frame;
 
-	/* TODO: Insert page table entry to map page's VA to frame's PA. */
+	/* 페이지의 va를 프레임의 pa에 매핑하고 페이지 테이블에 추가 */
+	if (!pml4_set_page(curr->pml4, page->va, frame->kva, page->writable));
 
-	return swap_in (page, frame->kva);
+	bool succ = swap_in (page, frame->kva);
+	return succ;
+}
+
+/* Returns a hash value for page p. */
+unsigned
+page_hash (const struct hash_elem *p_, void *aux UNUSED) {
+  const struct page *p = hash_entry (p_, struct page, hash_elem);
+  return hash_bytes (&p->va, sizeof p->va);
+}
+
+/* Returns true if page a precedes page b. */
+bool
+page_less (const struct hash_elem *a_,
+           const struct hash_elem *b_, void *aux UNUSED) {
+  const struct page *a = hash_entry (a_, struct page, hash_elem);
+  const struct page *b = hash_entry (b_, struct page, hash_elem);
+
+  return a->va < b->va;
 }
 
 /* Initialize new supplemental page table */
 void
 supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
+	hash_init (&spt->hash_table, page_hash, page_less, NULL);
 }
 
 /* Copy supplemental page table from src to dst */
 bool
 supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
-		struct supplemental_page_table *src UNUSED) {
+	struct supplemental_page_table *src UNUSED) {
 }
 
 /* Free the resource hold by the supplemental page table */

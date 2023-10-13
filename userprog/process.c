@@ -137,7 +137,7 @@ static bool duplicate_pte(uint64_t *pte, void *va, void *aux) {
     /* (4) parent_page를 newpage로 복제 */
     memcpy(newpage, parent_page, PGSIZE);
     writable = (*pte & PTE_W) ? true : false;
-    // writeable... 이부분이 GPT 도움 받은 부분 ; 부모의 각 페이지가 writeable 한지 확인하고 해당 값도 넘겨주는 과정
+    // able... 이부분이 GPT 도움 받은 부분 ; 부모의 각 페이지가 writeable 한지 확인하고 해당 값도 넘겨주는 과정
     // PTE_W는 페이지테이블의 각 엔트리별 lower bit flag로, write 권한이 있는지 확인하는 마크로
     // Parameter로 전달받은 부모의 pml4 엔트리, 그 PTE_W flag 값이 True/ false 인지 저장하고 set_page()에서 적용
 

@@ -120,8 +120,8 @@ intr##NUMBER##_stub:                            \
 
 /* All the stubs. */
 STUB(00, zero) STUB(01, zero) STUB(02, zero) STUB(03, zero)
-STUB(04, zero) STUB(05, zero) STUB(06, zero) STUB(07, zero)
-STUB(08, REAL) STUB(09, zero) STUB(0a, REAL) STUB(0b, REAL)
+STUB(04, zero) STUB(05, zero) STUB(06, zero) STUB(07, zero)	// 내가 인터럽트 프레임 구조체랑 형태를 맞추기 위해 0을 넣어줌
+STUB(08, REAL) STUB(09, zero) STUB(0a, REAL) STUB(0b, REAL)	// cpu가 자동으로 에러코드 넣어줘서 real
 STUB(0c, zero) STUB(0d, REAL) STUB(0e, REAL) STUB(0f, zero)
 
 STUB(10, zero) STUB(11, REAL) STUB(12, zero) STUB(13, zero)
