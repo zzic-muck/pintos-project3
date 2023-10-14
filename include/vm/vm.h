@@ -47,6 +47,7 @@ struct page {
 	struct frame *frame;   /* Back reference for frame */
 	struct hash_elem hash_elem;
 	bool writable;
+	enum vm_type type;
 
 	/* Your implementation */
 
@@ -89,15 +90,22 @@ struct page_operations {
  * We don't want to force you to obey any specific design for this struct.
  * All designs up to you for this. */
 struct supplemental_page_table {
-	struct hash *hash_table;
+	struct hash hash_table;
+};
+
+struct lazy_load_aux {
+	struct file *file;
+	off_t ofs;
+	uint32_t read_bytes;
+	uint32_t zero_bytes;
+	bool writable;
 };
 
 #include "threads/thread.h"
 void supplemental_page_table_init (struct supplemental_page_table *spt);
-bool supplemental_page_table_copy (struct supplemental_page_table *dst,
-		struct supplemental_page_table *src);
+bool supplemental_page_table_copy (struct supplemental_page_table *dst, struct supplemental_page_table *src);
 void supplemental_page_table_kill (struct supplemental_page_table *spt);
-struct page *spt_find_page (struct supplemental_page_table *spt,
+struct page *spt_find_page (struct supplemental_page_table *spt,      
 		void *va);
 bool spt_insert_page (struct supplemental_page_table *spt, struct page *page);
 void spt_remove_page (struct supplemental_page_table *spt, struct page *page);

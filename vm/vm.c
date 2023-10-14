@@ -19,6 +19,7 @@ vm_init (void) {
 	pagecache_init ();
 #endif
 	register_inspect_intr ();
+	list_init(&frame_table);
 	/* DO NOT MODIFY UPPER LINES. */
 	/* TODO: Your code goes here. */
 }
@@ -42,6 +43,8 @@ static struct frame *vm_get_victim (void);
 static bool vm_do_claim_page (struct page *page);
 static struct frame *vm_evict_frame (void);
 
+typedef bool (*page_initializer) (struct page *, enum vm_type, void *kva);
+
 /* Create the pending page object with initializer. If you want to create a
  * page, do not create it directly and make it through this function or
  * `vm_alloc_page`.
@@ -56,15 +59,33 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 	struct supplemental_page_table *spt = &thread_current ()->spt;
 	/* Check wheter the upage is already occupied or not. */
 	if (spt_find_page (spt, upage) == NULL) {
-
 		/* TODO: Create the page, fetch the initialier according to the VM type, */
-		struct page *page = 
-		void *init = 
+		struct page *page = (struct page *)malloc(sizeof(struct page));
+		if (!page)
+			return false;
+
 		/* TODO: and then create "uninit" page struct by calling uninit_new. */
+		page_initializer *new_initializer = NULL;
+
+		switch (type) {
+			case VM_ANON:
+				new_initializer = anon_initializer;
+				break;
+			case VM_FILE:
+				new_initializer = file_backed_initializer;
+				break;
+			default:
+				free(page);
+				return false;
+		}
+
 		/* TODO: You should modify the field after calling the uninit_new. */
+		uninit_new(page, upage, init, type, aux, new_initializer);
+		page->writable = writable;
 
 		/* TODO: Insert the page into the spt. */
-		list_push_back(&frame_table, );
+		spt_insert_page(spt, page);
+		return true;
 	}
 err:
 	return false;
@@ -146,15 +167,12 @@ vm_get_frame (void) {
 	// anonymous case를 위해 일단 PAL_ZERO
 	struct frame *new_frame = (struct frame *)malloc(sizeof(struct frame));	// 할당하기 위한 프레임 생성
 
-	ASSERT (new_frame != NULL);
-	ASSERT (new_frame->page == NULL);
 
 	// new_frame의 kva에 user pool의 페이지 할당
-	void *kva = new_frame->kva;
-	kva = palloc_get_page(PAL_USER | PAL_ZERO);	// 물리 메모리 할당 후 그 위치의 kva 반환
+	new_frame->kva = palloc_get_page(PAL_USER | PAL_ZERO);	// 물리 메모리 할당 후 그 위치의 kva 반환
 	
 	// user pool로부터 물리 메모리 할당 실패 시
-	if (!kva) {
+	if (!new_frame->kva) {
 		// user pool이 다 찼다는 뜻이므로 evicted_frame으로 빈자리 만들어줌
 		// 페이지 swap out -> 삭제할 페이지 디스크로 이동
 		new_frame = vm_evict_frame();
@@ -165,6 +183,11 @@ vm_get_frame (void) {
 	// 할당 받은 frame을 frame_table에 추가
 	list_push_back(&frame_table, &new_frame->frame_elem);
 	new_frame->page = NULL;
+
+	ASSERT (new_frame != NULL);
+	ASSERT (new_frame->page == NULL);
+
+
 	return new_frame;
 }
 
@@ -183,7 +206,7 @@ bool
 vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 		bool user UNUSED, bool write UNUSED, bool not_present UNUSED) {
 	struct supplemental_page_table *spt UNUSED = &thread_current ()->spt;
-	struct page *page = NULL;
+	struct page *page = spt_find_page(spt, addr);
 	/* TODO: Validate the fault */
 	/* TODO: Your code goes here */
 

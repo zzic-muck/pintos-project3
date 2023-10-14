@@ -563,7 +563,6 @@ static bool load(const char *file_name, struct intr_frame *if_) {
 
 done:
     /* 실행이 끝나고 나면 성공/실패 여부와 무관하게 아래 코드 실행 */
-    file_close(file);
     return success;
 }
 
@@ -763,40 +762,66 @@ static bool lazy_load_segment(struct page *page, void *aux) {
     /* TODO: Load the segment from the file */
     /* TODO: This called when the first page fault occurs on address VA. */
     /* TODO: VA is available when calling this function. */
+
+    ASSERT(page->frame->kva != NULL);
+
+    struct lazy_load_aux *new_aux = (struct lazy_load_aux*) aux;
+
+    size_t page_read_bytes = new_aux->read_bytes;   // 페이지에 로드되어야 하는 파일에서 읽어야 하는 바이트 수
+    size_t page_zero_bytes = new_aux->zero_bytes;   // 페이지의 나머지 부분을 0으로 설정해야 하는 바이트 수
+
+    // 읽기 실패
+    if (page == NULL)
+        return false;
+
+    if (file_read_at(new_aux->file, page->frame->kva, page_read_bytes, new_aux->ofs) != (int)page_read_bytes) {
+        palloc_free_page(page->frame->kva);
+        return false;
+    }
+
+    // 읽어온 데이터 이후의 나머지 바이트 0으로 설정하는 역할
+    memset(page->frame->kva + page_read_bytes, 0, page_zero_bytes);
+
+    return true;
 }
 
-/* Loads a segment starting at offset OFS in FILE at address
- * UPAGE.  In total, READ_BYTES + ZERO_BYTES bytes of virtual
- * memory are initialized, as follows:
- *
- * - READ_BYTES bytes at UPAGE must be read from FILE
- * starting at offset OFS.
- *
- * - ZERO_BYTES bytes at UPAGE + READ_BYTES must be zeroed.
- *
- * The pages initialized by this function must be writable by the
- * user process if WRITABLE is true, read-only otherwise.
- *
- * Return true if successful, false if a memory allocation error
- * or disk read error occurs. */
+/* 파일의 오프셋 OFS에서 시작하는 세그먼트를 가상 주소 UPAGE에서 로드합니다.
+ * 총 가상 메모리 공간은 READ_BYTES + ZERO_BYTES 바이트로 초기화됩니다.
+ * 이를 위해 다음과 같은 단계를 따릅니다:
+ * UPAGE에서 시작하는 READ_BYTES 바이트는 OFS에서 시작하는 파일로부터 읽어와야 합니다.
+ * UPAGE + READ_BYTES에서 시작하는 ZERO_BYTES 바이트는 0으로 설정되어야 합니다.
+ * 이 함수에 의해 초기화된 페이지는 WRITABLE이 true로 설정된 경우
+ * 사용자 프로세스에서 쓰기가 가능해야 하며, 그렇지 않은 경우에는 읽기 전용이어야 합니다.
+ * 작업이 성공한 경우 true를 반환하며, 메모리 할당 오류 또는 디스크 읽기 오류가 발생한 경우 false를 반환합니다. */
 static bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes, uint32_t zero_bytes, bool writable) {
-    ASSERT((read_bytes + zero_bytes) % PGSIZE == 0);
-    ASSERT(pg_ofs(upage) == 0);
-    ASSERT(ofs % PGSIZE == 0);
+    ASSERT((read_bytes + zero_bytes) % PGSIZE == 0);    // 페이지 크기의 배수
+    ASSERT(pg_ofs(upage) == 0); // upage가 페이지의 시작점
+    ASSERT(ofs % PGSIZE == 0);  // 페이지 크기의 배수
 
-    while (read_bytes > 0 || zero_bytes > 0) {
-        /* Do calculate how to fill this page.
-         * We will read PAGE_READ_BYTES bytes from FILE
-         * and zero the final PAGE_ZERO_BYTES bytes. */
+    // read bytes, zero bytes 처리하면서 페이지 초기화
+    while (read_bytes > 0 || zero_bytes > 0) {  // 모든 바이트가 처리될 때까지 페이지별로 계산 수행
+        /* 이 페이지를 채우는 방법을 계산하세요.
+         * 우리는 파일에서 page_read_bytes를 읽어오고,
+         * 나머지 page_zero_bytes는 0으로 설정할 것이다. */
         size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
         size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-        /* TODO: Set up aux to pass information to the lazy_load_segment. */
-        void *aux = NULL;
+        struct lazy_load_aux *aux = (struct lazy_load_aux*) malloc(sizeof(struct lazy_load_aux));
+
+        aux->file = file;
+        aux->ofs = ofs;
+        aux->read_bytes = page_read_bytes;
+        aux->zero_bytes = page_zero_bytes;
+        aux->writable = writable;
+
+        // 페이지 할당, 해당 페이지에 대한 정보를 lazy로 전달하기 위한 aux도 설정
+        // 이 함수는 VM_ANON 타입의 페이지를 생성하며, 페이지가 쓰기 가능한지 여부와 초기화
         if (!vm_alloc_page_with_initializer(VM_ANON, upage, writable, lazy_load_segment, aux))
             return false;
 
         /* Advance. */
+        // 각 페이지에서 처리한 후 upage 업데이트하고 루프 반복
+        ofs += page_read_bytes;
         read_bytes -= page_read_bytes;
         zero_bytes -= page_zero_bytes;
         upage += PGSIZE;
@@ -814,6 +839,12 @@ static bool setup_stack(struct intr_frame *if_) {
      * TODO: You should mark the page is stack. */
     /* TODO: Your code goes here */
 
+    if (vm_alloc_page(VM_ANON, stack_bottom, true)) {
+        if (vm_claim_page(stack_bottom)) {
+                if_->rsp = USER_STACK;
+                success = true;
+            }
+        }
     return success;
 }
 #endif /* VM */
