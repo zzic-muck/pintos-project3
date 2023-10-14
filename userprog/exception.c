@@ -95,32 +95,32 @@ static void page_fault(struct intr_frame *f) {
     bool not_present; /* True: not-present page, false: writing r/o page. */
     bool write;       /* True: access was write, false: access was read. */
     bool user;        /* True: access by user, false: access by kernel. */
-    void *fault_addr; /* Fault address. */
+    void *fault_addr; /* page fault가 발생한 virtual address 저장 */
 
     /* Faulting Address를 확보 (Virtual Address).
        특정 코드 또는 데이터를 가리킬 수 있으며, 반드시 Instruction을 가리키진 않음.
        Instruction은 현 시점에서 f->rip에 저장되어 있음. */
-    fault_addr = (void *)rcr2();
+    fault_addr = (void *)rcr2();    // 페이지 폴트가 발생한 가상 주소 저장
 
     /* Exceptions.c에서 다른 코멘트로도 언급했지만, Page Fault는 Interrupt를 끄고 다뤄야 함.
        %cr2에서 필요한 정보가 바뀌기 전에 확보하기 위한 절차였으니, 이제 켜줘도 됨. */
-    intr_enable();
+    intr_enable();  // 페이지 폴트 핸들링 전에 비활성화된 인터럽트를 다시 활성화 -> 페이지 폴트 핸들링 중에 새로운 인터럽트가 발생하는 것을 허용함
 
     /* Page Fault가 발생한 이유를 확인 */
-    not_present = (f->error_code & PF_P) == 0;
-    write = (f->error_code & PF_W) != 0;
-    user = (f->error_code & PF_U) != 0;
+    not_present = (f->error_code & PF_P) == 0; // 페이지 존재 X
+    write = (f->error_code & PF_W) != 0;       // 페이지 접근이 쓰기 작업인지 확인
+    user = (f->error_code & PF_U) != 0;        // 사용자 모드에서 발생했는지 확인
 
 #ifdef VM
     /* For project 3 and later. */
-    if (vm_try_handle_fault(f, fault_addr, user, write, not_present))
+    if (vm_try_handle_fault(f, fault_addr, user, write, not_present))   // 페이지 폴트 처리
         return;
 #endif
 
     /* 발생한 Page Fault의 숫자를 증감 (통계 관리 목적) */
-    page_fault_cnt++;  
-    exit(-1);
+    page_fault_cnt++;
     /* 만일 Fault가 진짜 에러로 발생한 Fault라면, 관련 정보를 보여주고 프로세스를 종료. */
+    exit(-1); 
     // printf("Page fault at %p: %s error %s page in %s context.\n", fault_addr, not_present ? "not present" : "rights violation", write ? "writing" : "reading", user ? "user" : "kernel");
     // kill(f);
 }

@@ -44,7 +44,9 @@ static struct frame *vm_evict_frame (void);
 
 /* Create the pending page object with initializer. If you want to create a
  * page, do not create it directly and make it through this function or
- * `vm_alloc_page`. */
+ * `vm_alloc_page`.
+ * 인자로 전달한 vm_type에 맞는 적절한 초기화 함수를 가져와야 하고,
+ * 이 함수를 인자로 갖는 uninit_new() 함수를 호출해야 한다. */
 bool
 vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 		vm_initializer *init, void *aux) {
@@ -52,22 +54,25 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 	ASSERT (VM_TYPE(type) != VM_UNINIT)
 
 	struct supplemental_page_table *spt = &thread_current ()->spt;
-
 	/* Check wheter the upage is already occupied or not. */
 	if (spt_find_page (spt, upage) == NULL) {
 
-		/* TODO: Create the page, fetch the initialier according to the VM type,
-		 * TODO: and then create "uninit" page struct by calling uninit_new. You
-		 * TODO: should modify the field after calling the uninit_new. */
+		/* TODO: Create the page, fetch the initialier according to the VM type, */
+		struct page *page = 
+		void *init = 
+		/* TODO: and then create "uninit" page struct by calling uninit_new. */
+		/* TODO: You should modify the field after calling the uninit_new. */
 
 		/* TODO: Insert the page into the spt. */
+		list_push_back(&frame_table, );
 	}
 err:
 	return false;
 }
 
 /* Find VA from spt and return page. On error, return NULL.
- * 인자로 받은 va에 해당하는 page num을 검색하여 page num을 추출하는 함수 */
+ * 인자로 받은 spt로부터 va에 해당하는 page 구조체를 찾아서 반환 
+ * 실패했을 경우 NULL 반환 */
 struct page *
 spt_find_page (struct supplemental_page_table *spt, void *va) {
 	// 더미 페이지 생성 및 초기화
@@ -86,7 +91,7 @@ spt_find_page (struct supplemental_page_table *spt, void *va) {
 }
 
 /* Insert PAGE into spt with validation. 
- * spt에 인자로 들어온 페이지를 삽입시키는 함수 
+ * spt에 인자로 들어온 페이지를 삽입. spt에서 va가 존재하지 않는지 검사해야함 
  * 삽입에 성공하면 true, 실패하면 false */
 bool
 spt_insert_page (struct supplemental_page_table *spt, struct page *page) {
@@ -131,7 +136,8 @@ vm_evict_frame (void) {
 	return victim;
 }
 
-/* palloc() 함수는 페이지 프레임을 할당하고 해당 프레임을 반환합니다.
+/* 유저풀에서 palloc_get_page를 호출함으로써 새로운 물리 페이지를 가져온다.
+ * palloc() 함수는 페이지 프레임을 할당하고 해당 프레임을 반환합니다.
  * 사용 가능한 페이지가 없는 경우 페이지를 대체하고 해당 페이지를 반환합니다.
  * 이 함수는 항상 유효한 주소를 반환합니다.
  * 다시 말해, 유저풀 메모리가 가득 차 있는 경우 사용 가능한 메모리 공간을 확보하기 위해 페이지를 대체합니다.*/
@@ -152,7 +158,7 @@ vm_get_frame (void) {
 		// user pool이 다 찼다는 뜻이므로 evicted_frame으로 빈자리 만들어줌
 		// 페이지 swap out -> 삭제할 페이지 디스크로 이동
 		new_frame = vm_evict_frame();
-		new_frame->page = NULL;
+		new_frame->page = NULL;	// 구조체 멤버 초기화
 		return new_frame;
 	}
 
@@ -193,6 +199,7 @@ vm_dealloc_page (struct page *page) {
 }
 
 /* Claim the page that allocate on VA.
+ * 인자로 주어진 va에 페이지를 할당
  * 물리 프레임과 연결할 페이지를 spt를 통해서 찾아준 뒤, do_claim() 호출 */
 bool
 vm_claim_page (void *va UNUSED) {
@@ -205,7 +212,9 @@ vm_claim_page (void *va UNUSED) {
 	return vm_do_claim_page (page);
 }
 
-/* Claim the PAGE and set up the mmu. */
+/* Claim the PAGE and set up the mmu.
+ * mmu setting: 가상 주소와 물리 주소를 매핑한 정보를 페이지 테이블에 추가
+ * 인자로 주어진 page에 물리 메모리 프레임을 할당한다. */
 static bool
 vm_do_claim_page (struct page *page) {
 	// 페이지가 유효하지 않거나, 페이지가 이미 차지된 경우
