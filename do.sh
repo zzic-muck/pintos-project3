@@ -24,7 +24,7 @@ CLOSE_TWICE="pintos -v -k -T 60 -m 20   --fs-disk=10 -p tests/userprog/close-twi
 CLOSE_BAD_FD="pintos -v -k -T 60 -m 20   --fs-disk=10 -p tests/userprog/close-bad-fd:close-bad-fd --swap-disk=4 -- -q   -f run close-bad-fd"
 READ_NORMAL="pintos -v -k -T 60 -m 20   --fs-disk=10 -p tests/userprog/read-normal:read-normal -p ../../tests/userprog/sample.txt:sample.txt --swap-disk=4 -- -q   -f run read-normal"
 READ_BAD_PTR="pintos -v -k -T 60 -m 20   --fs-disk=10 -p tests/userprog/read-bad-ptr:read-bad-ptr -p ../../tests/userprog/sample.txt:sample.txt --swap-disk=4 -- -q   -f run read-bad-ptr"
-READ_BOUNDAR="pintos -v -k -T 60 -m 20   --fs-disk=10 -p tests/userprog/read-boundary:read-boundary -p ../../tests/userprog/sample.txt:sample.txt --swap-disk=4 -- -q   -f run read-boundary"
+READ_BOUNDARY="pintos -v -k -T 60 -m 20   --fs-disk=10 -p tests/userprog/read-boundary:read-boundary -p ../../tests/userprog/sample.txt:sample.txt --swap-disk=4 -- -q   -f run read-boundary"
 READ_ZERO="pintos -v -k -T 60 -m 20   --fs-disk=10 -p tests/userprog/read-zero:read-zero -p ../../tests/userprog/sample.txt:sample.txt --swap-disk=4 -- -q   -f run read-zero"
 READ_STDOUT="pintos -v -k -T 60 -m 20   --fs-disk=10 -p tests/userprog/read-stdout:read-stdout --swap-disk=4 -- -q   -f run read-stdout"
 READ_BAD_FD="pintos -v -k -T 60 -m 20   --fs-disk=10 -p tests/userprog/read-bad-fd:read-bad-fd --swap-disk=4 -- -q   -f run read-bad-fd"
@@ -147,4 +147,4 @@ make
 cd build
 source ../../activate
 
-$ARGS_NONE
+$EXEC_ONCE

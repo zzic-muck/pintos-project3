@@ -381,10 +381,9 @@ int filesize(int fd) {
    fd 0은 input_getc()를 통해서 키보드 입력값을 읽어옴. */
 int read(int fd, void *buffer, unsigned size) {
 
-    if (!buffer_validity_check(buffer, size)) {
-
-        exit(-1);
-    }
+    // if (!buffer_validity_check(buffer, size)) {
+    //     exit(-1);
+    // }
     /* 읽어온 바이트 수를 기록할 변수 초기화 */
     int read_count = 0;
 
@@ -422,9 +421,9 @@ int write(int fd, const void *buffer, unsigned size) {
         return -1; // STDIN
     }
 
-    if (!buffer_validity_check(buffer, size)) {
-        exit(-1); // Validity 확인 결과 실패
-    }
+    // if (!buffer_validity_check(buffer, size)) {
+    //     exit(-1); // Validity 확인 결과 실패
+    // }
 
     if (fd == 1) {
         putbuf(buffer, size);

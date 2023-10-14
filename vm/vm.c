@@ -60,11 +60,14 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 	/* Check wheter the upage is already occupied or not. */
 	if (spt_find_page (spt, upage) == NULL) {
 		/* TODO: Create the page, fetch the initialier according to the VM type, */
+		/* TODO: and then create "uninit" page struct by calling uninit_new. */
+		/* TODO: You should modify the field after calling the uninit_new. */
+		/* TODO: Insert the page into the spt. */
 		struct page *page = (struct page *)malloc(sizeof(struct page));
+		
 		if (!page)
 			return false;
 
-		/* TODO: and then create "uninit" page struct by calling uninit_new. */
 		page_initializer *new_initializer = NULL;
 
 		switch (type) {
@@ -79,11 +82,9 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 				return false;
 		}
 
-		/* TODO: You should modify the field after calling the uninit_new. */
 		uninit_new(page, upage, init, type, aux, new_initializer);
 		page->writable = writable;
 
-		/* TODO: Insert the page into the spt. */
 		spt_insert_page(spt, page);
 		return true;
 	}
@@ -167,10 +168,14 @@ vm_get_frame (void) {
 	// anonymous case를 위해 일단 PAL_ZERO
 	struct frame *new_frame = (struct frame *)malloc(sizeof(struct frame));	// 할당하기 위한 프레임 생성
 
-
 	// new_frame의 kva에 user pool의 페이지 할당
 	new_frame->kva = palloc_get_page(PAL_USER | PAL_ZERO);	// 물리 메모리 할당 후 그 위치의 kva 반환
 	
+	if (!new_frame || !new_frame->kva) {
+		PANIC("fail~~~");
+		return NULL;
+	}
+
 	// user pool로부터 물리 메모리 할당 실패 시
 	if (!new_frame->kva) {
 		// user pool이 다 찼다는 뜻이므로 evicted_frame으로 빈자리 만들어줌
@@ -186,7 +191,6 @@ vm_get_frame (void) {
 
 	ASSERT (new_frame != NULL);
 	ASSERT (new_frame->page == NULL);
-
 
 	return new_frame;
 }
@@ -206,9 +210,12 @@ bool
 vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 		bool user UNUSED, bool write UNUSED, bool not_present UNUSED) {
 	struct supplemental_page_table *spt UNUSED = &thread_current ()->spt;
-	struct page *page = spt_find_page(spt, addr);
+	struct page *page = spt_find_page(spt, pg_round_down(addr));
 	/* TODO: Validate the fault */
 	/* TODO: Your code goes here */
+
+	if (!page)
+		return false;
 
 	return vm_do_claim_page (page);
 }
@@ -227,7 +234,7 @@ vm_dealloc_page (struct page *page) {
 bool
 vm_claim_page (void *va UNUSED) {
 	struct page *page = spt_find_page(&thread_current()->spt, va);
-
+	
 	// 페이지 찾을 수 없는 경우
 	if (!page)
 		return false;
