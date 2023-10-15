@@ -412,8 +412,6 @@ supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
 bool
 supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
 		struct supplemental_page_table *src UNUSED) {
-
-	// dst = (struct supplemental_page_table *) malloc (sizeof(struct supplemental_page_table));
 	
 	struct hash_iterator i;
 
@@ -427,7 +425,7 @@ supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
 		if (type == VM_UNINIT) {
 			vm_initializer *init = src_page ->uninit.init;
 			void *aux = src_page -> uninit.aux;
-			vm_alloc_page_with_initializer (VM_UNINIT, upage, writable, init, aux);
+			vm_alloc_page_with_initializer (VM_ANON, upage, writable, init, aux);
 			continue;
 		}
 		//uninit이 아니라면
@@ -444,7 +442,6 @@ supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
 		struct page *dst_page = spt_find_page(dst, upage);
 		memcpy(dst_page->frame->kva, src_page->frame->kva, PGSIZE);
 		
-   		// ...do something with f...
   	}
 	return true;
 }
