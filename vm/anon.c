@@ -29,7 +29,8 @@ bool
 anon_initializer (struct page *page, enum vm_type type, void *kva) {
 	/* Set up the handler */
 	page->operations = &anon_ops;
-
+	struct thread *t = thread_current();
+	// pml4_set_page (t -> pml4, page -> va, kva, page -> writable);
 	struct anon_page *anon_page = &page->anon;
 	return true;
 }

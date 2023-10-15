@@ -869,6 +869,7 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t 
         aux->zero_bytes = page_zero_bytes;
         aux->writable = writable;
         upage = pg_round_down(upage);
+        // printf("writeable: %d\n", writable);
         // printf("load segment; file: %p, ofs: %d, read_bytes: %d\n", file, ofs, page_read_bytes);
         if (!vm_alloc_page_with_initializer(VM_ANON, upage, writable, lazy_load_segment, aux))
             return false;

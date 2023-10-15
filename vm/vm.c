@@ -97,10 +97,12 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 
 			case VM_ANON:
 				uninit_new(page, upage, init, type, aux, anon_initializer);
+				page->writable = writable;
 				break;
 			
 			case VM_FILE:
 				uninit_new(page, upage, init, type, aux, file_backed_initializer);
+				page->writable = writable;
 				break;
 			
 			default:
@@ -245,20 +247,28 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	struct page *page = NULL;
 	/* TODO: Validate the fault */
 	/* TODO: Your code goes here */ 
-	if(addr > USER_STACK && addr < KERN_BASE){
+
+	if(addr < USER_STACK && addr > KERN_BASE){
 		
 		return false;
 	}
 
 	if(spt_find_page(spt, pg_round_down(addr)) == NULL){
-
 		if(pg_round_down(addr) < USER_STACK && pg_round_down(addr) > (USER_STACK - (1<<20)) && addr == f->rsp) 
 		{
 			vm_stack_growth(pg_round_down(addr));
 		}
-		else
+		else{
 			return false;
+		}
 	}
+	else{
+		if(spt_find_page(spt, pg_round_down(addr))->writable == false && write == true){
+			return false;
+		}
+	}
+	
+	
 
     page = spt_find_page(spt, pg_round_down(addr));
 
@@ -284,9 +294,11 @@ vm_claim_page (void *va UNUSED) {
 
 	// 혹시 alloc 실패하면 여기서 뭔가 do claim 하기전에 하지 않을까??
 	
-	vm_alloc_page(VM_ANON, va, true);
+	// vm_alloc_page(VM_ANON, va, false);
 	va = pg_round_down(va);
+	vm_alloc_page(VM_ANON, va, true);
 	page = spt_find_page(&thread_current()->spt, va);
+
 	if(page == NULL) 
 		return false;
 
@@ -307,10 +319,7 @@ vm_do_claim_page (struct page *page) {
 	// page가 어떤 kva(물리주소) 와 연결되어있는지 확인
 	// 없으면 va를 kva와 연결해준다
 	// pml4_set_page를 써봄
-
-	if (!pml4_set_page (t -> pml4, page -> va, frame -> kva, true))
-		return false;
-
+	pml4_set_page (t -> pml4, page -> va, frame->kva, page->writable);
 	return swap_in (page, frame->kva);
 }
 
@@ -346,7 +355,8 @@ supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
 		if (type == VM_UNINIT) {
 			// vm_initializer *init = src_page ->uninit.init;
 			// void *aux = src_page -> uninit.aux;
-			vm_alloc_page_with_initializer (VM_ANON, upage, writable, init, aux);
+			if(!vm_alloc_page_with_initializer (VM_ANON, upage, writable, init, aux))
+				return false;
 			// continue;
 		}
 		else{
