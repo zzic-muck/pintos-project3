@@ -771,7 +771,7 @@ static bool lazy_load_segment(struct page *page, void *aux) {
     /* TODO: VA is available when calling this function. */
     ASSERT(page -> frame -> kva != NULL);
 
-    struct lazy_load_aux *aux_ = aux;
+    struct lazy_load_aux *aux_ = (struct lazy_load_aux *)aux;
 
     file_seek(aux_ -> file, aux_ -> ofs);
 
@@ -781,8 +781,8 @@ static bool lazy_load_segment(struct page *page, void *aux) {
          * We will read PAGE_READ_BYTES bytes from FILE
          * and zero the final PAGE_ZERO_BYTES bytes. */
 
-        // size_t page_read_bytes = read_bytes;
-        // size_t page_zero_bytes = zero_bytes;
+        size_t page_read_bytes = aux_->read_bytes;
+        size_t page_zero_bytes = aux_->zero_bytes;
 
         /* Get a page of memory. */
         if (page == NULL) {
@@ -790,12 +790,12 @@ static bool lazy_load_segment(struct page *page, void *aux) {
         }
 
         /* Load this page. */
-        if (file_read(aux_-> file, page -> frame -> kva, aux_-> read_bytes) != (int)aux_-> read_bytes) {
+        if (file_read(aux_-> file, page -> frame -> kva, page_read_bytes) != (int)page_read_bytes) {
             palloc_free_page(page->frame->kva);
             return false;
         }
 
-        memset (page -> frame -> kva + aux_ -> read_bytes, 0, aux_ -> zero_bytes);
+        memset (page -> frame -> kva + page_read_bytes, 0, page_zero_bytes);
     // }
 
     return true;

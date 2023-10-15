@@ -108,7 +108,7 @@ struct supplemental_page_table {
 
 /*spt_hash는 해시 테이블로 가상 주소와 해당하는 페이지 정보를 매핑합니다.
 각 항목은 해시 함수를 사용하여 빠르게 접근할 수 있습니다.*/
-struct hash *spt_hash;
+struct hash spt_hash;
 
 /* lock은 보충 페이지 테이블에 대한 동시 액세스를 관리하는 데 사용됩니다. 다중 스레드 환경에서 안전한 접근을 보장합니다.*/
 // struct lock *lock;

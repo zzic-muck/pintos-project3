@@ -129,6 +129,9 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 			case VM_FILE:
 				page_initializer = file_backed_initializer;
 				break; 
+			default:
+				free(page);
+				break;
 		}
 
 		//3. uninit_new를 통해 page를 초기화 해준다.
@@ -266,9 +269,11 @@ vm_get_frame (void) {
 	//project 3
 	//malloc으로 빈 frame 할당
 	struct frame *new_frame = (struct frame *)malloc(sizeof(struct frame));
-
-	ASSERT (new_frame != NULL);
-	ASSERT (new_frame->page == NULL);
+	if (new_frame == NULL || new_frame -> kva == NULL) {
+		PANIC("todo");
+		return NULL;
+	}
+	
 	//frame의 kva에 user pool의 페이지 할당
 	//anonymous case를 위해 일단 PAL_ZERO
 	new_frame -> kva = palloc_get_page(PAL_USER | PAL_ZERO);
@@ -286,12 +291,18 @@ vm_get_frame (void) {
 	new_frame->page = NULL;
 	//project 3
 	
+	ASSERT (new_frame != NULL);
+	ASSERT (new_frame->page == NULL);
+
 	return new_frame;
 }
 
 /* Growing the stack. */
 static void
 vm_stack_growth (void *addr UNUSED) {
+	//stack 크기를 증가시키기 위해서 anon page를 하나 이상 할당하여 주어진 주소가 더이상 예외주소가 되지 않도록 해야함
+	//할당할 때 addr을 PGSIZE로 내림하여 처리
+	vm_alloc_page(VM_ANON|VM_MARKER_0, pg_round_down(addr),1);
 }
 
 /* Handle the fault on write_protected page */
@@ -316,6 +327,17 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	}
 	//접근한 메모리의 physical page가 존재하지 않는 경우
 	if (not_present) {
+		void *rsp = f -> rsp;
+		if (!user) {
+			rsp = thread_current() -> rsp;
+		}
+		//stack 확장으로 처리할 수 있는 폴트
+		if (USER_STACK - (1 << 20) <= rsp - 8 && rsp - 8 == addr && addr <= USER_STACK) {
+			vm_stack_growth(addr);
+		} else if (USER_STACK - (1<<20)<= rsp && rsp <= addr && addr <= USER_STACK) {
+			vm_stack_growth(addr);
+		}
+
 		page = spt_find_page(spt, addr);
 		if (page == NULL) {
 			return false;
@@ -370,8 +392,8 @@ vm_do_claim_page (struct page *page) {
 	page->frame = frame;
 	//frame 과 page를 연결해준다
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
-	if (!pml4_set_page (cur -> pml4, page -> va, frame->kva, true))
-		return false;
+	pml4_set_page (cur -> pml4, page -> va, frame->kva, page -> writable);
+	
 	return swap_in (page, frame->kva);
 	//project 3
 }
@@ -381,7 +403,7 @@ void
 supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
 
 	//project 3
-	hash_init(spt, page_hash_func, page_less_func, NULL );
+	hash_init(&spt -> spt_hash, page_hash_func, page_less_func, NULL );
 	//project 3
 
 }
