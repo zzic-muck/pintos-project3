@@ -147,4 +147,4 @@ make
 cd build
 source ../../activate
 
-$READ_BOUNDAR
+$FORK_ONCE
