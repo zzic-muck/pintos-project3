@@ -59,6 +59,8 @@
         "intrinsic.h": "c",
         "debug.h": "c",
         "init.h": "c",
-        "vm.h": "c"
+        "vm.h": "c",
+        "inspect.h": "c",
+        "mmu.h": "c"
     }
 }

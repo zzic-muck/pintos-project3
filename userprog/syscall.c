@@ -167,9 +167,9 @@ bool pointer_validity_check(void *addr) {
     if (is_kernel_vaddr(addr))
         return false;
 
-    /* 제공된 주소가 Unmapped일 경우 */
-    if (pml4_get_page(thread_current()->pml4, addr) == NULL)
-        return false; // pml4만 확인하는 함수 (나머지 레벨의 page table 들도 검사해야하는데, 우선 이렇게)
+    // /* 제공된 주소가 Unmapped일 경우 */
+    // if (pml4_get_page(thread_current()->pml4, addr) == NULL)
+    //     return false; // pml4만 확인하는 함수 (나머지 레벨의 page table 들도 검사해야하는데, 우선 이렇게)
 
     /* 다 통과했으니 */
     return true;
@@ -219,7 +219,6 @@ void exit(int status) {
 
     /* 테스트 통과용 printf */
     printf("%s: exit(%d)\n", thread_current()->name, status); // 이걸 process_exit()으로 옮기면 syn-read가 조금 더 진행됨 (;;)
-
     /* 유저 프로그램이 직접 제공한 status 값을 exit 하는 프로세스/스레드의 exit_status 값으로 저장 */
     thread_current()->exit_status = status;
 
@@ -382,7 +381,6 @@ int filesize(int fd) {
 int read(int fd, void *buffer, unsigned size) {
 
     if (!buffer_validity_check(buffer, size)) {
-
         exit(-1);
     }
     /* 읽어온 바이트 수를 기록할 변수 초기화 */
@@ -402,6 +400,7 @@ int read(int fd, void *buffer, unsigned size) {
     if (!file) {
         return -1; // exit(-1)을 하려다가, 공식 문서에 적힌대로 우선 -1로 바꾼 상태
     }
+
     read_count = file_read(file, buffer, size); // file_read는 size를 (off_t*) 형태로 바라는 것 같은데, 에러가 떠서 일단 일반 사이즈로 넣음
 
     return read_count;
@@ -416,14 +415,10 @@ int read(int fd, void *buffer, unsigned size) {
    시스템 콘솔에 write하기 위한 코드는 buffer에 있는 모든 데이터를 putbuf()로 한번에 사용해야 함 (수백바이트 크기가 아니라면).
    한번에 putbuf()를 하지 않는다면 다양한 프로세스들의 아웃풋이 콘솔에 혼재되어 프린트되게 됨. */
 int write(int fd, const void *buffer, unsigned size) {
-
+ 
+    
     if (fd == 0) {
-
         return -1; // STDIN
-    }
-
-    if (!buffer_validity_check(buffer, size)) {
-        exit(-1); // Validity 확인 결과 실패
     }
 
     if (fd == 1) {
@@ -439,6 +434,8 @@ int write(int fd, const void *buffer, unsigned size) {
     if (file_to_write->deny_write == true) {
         return NULL;
     } // 만일 deny_write라면 실패 반환 (임시, sync_write 등에서 수정 필요할 가능성 높음)
+
+    
 
     int bytes_written = file_write(file_to_write, buffer, size);
 

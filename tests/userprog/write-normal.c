@@ -4,6 +4,7 @@
 #include "tests/userprog/sample.inc"
 #include "tests/lib.h"
 #include "tests/main.h"
+#include  <stdio.h>
 
 void
 test_main (void) 

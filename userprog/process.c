@@ -1,4 +1,4 @@
-#define VM
+// #define VM
 #include "userprog/process.h"
 #include "filesys/directory.h"
 #include "filesys/file.h"
@@ -31,14 +31,14 @@ static bool load(const char *file_name, struct intr_frame *if_);
 static void initd(void *f_name);
 static void __do_fork(void *);
 
-struct lazy_load_aux {
-    struct file *file;
-    off_t ofs;
-    uint8_t *upage;
-    uint32_t read_bytes;
-    uint32_t zero_bytes;
-    bool writable;
-};
+// struct lazy_load_aux {
+//     struct file *file;
+//     off_t ofs;
+//     uint8_t *upage;
+//     uint32_t read_bytes;
+//     uint32_t zero_bytes;
+//     bool writable;
+// };
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -797,8 +797,8 @@ static bool lazy_load_segment(struct page *page, void *aux) {
          * We will read PAGE_READ_BYTES bytes from FILE
          * and zero the final PAGE_ZERO_BYTES bytes. */
 
-        // size_t page_read_bytes = read_bytes;
-        // size_t page_zero_bytes = zero_bytes;
+        size_t page_read_bytes = read_bytes;
+        size_t page_zero_bytes = zero_bytes;
 
         /* Get a page of memory. */
 
@@ -808,11 +808,12 @@ static bool lazy_load_segment(struct page *page, void *aux) {
         }
 
         /* Load this page. */
-        if (file_read(file,page->frame->kva, read_bytes) != (int)read_bytes) {
-            printf("file_read fail\n");
-            vm_dealloc_page(page);
-            return false;
-        }
+        file_read(file, page->frame->kva, read_bytes);
+        // if (file_read(file, page->frame->kva, read_bytes) != (int)read_bytes) {
+        //     // printf("file_read fail\n");
+        //     vm_dealloc_page(page);
+        //     return false;
+        // }
 
         /* Add the page to the process's address space. */
         // if (!vm_claim_page(page->va)) {
@@ -820,12 +821,14 @@ static bool lazy_load_segment(struct page *page, void *aux) {
         //     return false;
         // }
 
-        /* Advance. */
+        // /* Advance. */
         // read_bytes -= page_read_bytes;
         // zero_bytes -= page_zero_bytes;
         // page += PGSIZE;
         // ofs += PGSIZE;
+
     // }
+    free(aux_);
     return true;
 }
 
@@ -846,7 +849,7 @@ static bool lazy_load_segment(struct page *page, void *aux) {
 static bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes, uint32_t zero_bytes, bool writable) {
     ASSERT((read_bytes + zero_bytes) % PGSIZE == 0);
     ASSERT(pg_ofs(upage) == 0);
-    ASSERT(ofs % PGSIZE == 0);
+    // ASSERT(ofs % PGSIZE == 0);
 
     off_t read_start = ofs;
 
@@ -865,16 +868,17 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t 
         aux->read_bytes = page_read_bytes;
         aux->zero_bytes = page_zero_bytes;
         aux->writable = writable;
-
+        upage = pg_round_down(upage);
         // printf("load segment; file: %p, ofs: %d, read_bytes: %d\n", file, ofs, page_read_bytes);
         if (!vm_alloc_page_with_initializer(VM_ANON, upage, writable, lazy_load_segment, aux))
             return false;
-                /* Advance. */
+               /* Advance. */
         
         read_start += page_read_bytes;
         read_bytes -= page_read_bytes;
         zero_bytes -= page_zero_bytes;
         upage += PGSIZE;
+        
     }
     return true;
 }
@@ -888,13 +892,10 @@ static bool setup_stack(struct intr_frame *if_) {
      * TODO: If success, set the rsp accordingly.
      * TODO: You should mark the page is stack. */
     /* TODO: Your code goes here */
-
-    if (vm_alloc_page(VM_ANON, stack_bottom, true)) {
-
-        if(vm_claim_page(stack_bottom)){
-            if_->rsp = USER_STACK;
-            success = true;
-        }
+                                                                            
+    if(vm_claim_page(stack_bottom)){
+        if_->rsp = USER_STACK;
+        success = true;
     }
 
     return success;
