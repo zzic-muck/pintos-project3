@@ -37,6 +37,7 @@ enum vm_type {
 
 struct page_operations;
 struct thread;
+struct data;
 
 #define VM_TYPE(type) ((type) & 7)
 
@@ -105,16 +106,15 @@ struct page_operations {
 아래는 struct supplemental_page_table의 멤버 중 일부의 예시입니다: */
 struct supplemental_page_table {
 
-
 /*spt_hash는 해시 테이블로 가상 주소와 해당하는 페이지 정보를 매핑합니다.
 각 항목은 해시 함수를 사용하여 빠르게 접근할 수 있습니다.*/
-struct hash *spt_hash;
+struct hash spt_hash;
 
 /* lock은 보충 페이지 테이블에 대한 동시 액세스를 관리하는 데 사용됩니다. 다중 스레드 환경에서 안전한 접근을 보장합니다.*/
 // struct lock *lock;
 
 /* 현재 프로세스의 가상 주소 공간이 읽기 쓰기 가능한지 여부를 나타내는 플래그입니다. */
-bool writable;
+// bool writable;
 
 /* 현재 실행 중인 프로세스와 관련된 실행 파일에 대한 포인터입니다. 이를 통해 실행 파일의 내용을 메모리에 로드할 때 사용됩니다.*/
 //struct file *executable_file;
