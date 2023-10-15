@@ -168,6 +168,7 @@ bool pointer_validity_check(void *addr) {
         return false;
 
     /* 제공된 주소가 Unmapped일 경우 */
+    // pml4_get_page 에러처리 하게 되면 lazy loading 후 페이지 폴트 날 때마다 return false 되므로 하면 안됨!
     // if (pml4_get_page(thread_current()->pml4, addr) == NULL)
     //     return false; // pml4만 확인하는 함수 (나머지 레벨의 page table 들도 검사해야하는데, 우선 이렇게)
 
