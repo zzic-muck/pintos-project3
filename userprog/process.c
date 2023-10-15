@@ -536,6 +536,8 @@ static bool load(const char *file_name, struct intr_frame *if_) {
                     zero_bytes = (ROUND_UP(page_offset + phdr.p_memsz, PGSIZE) - read_bytes);
                 } else {
                     /* Entirely zero.
+
+
                      * Don't read anything from disk. */
                     read_bytes = 0;
                     zero_bytes = ROUND_UP(page_offset + phdr.p_memsz, PGSIZE);
@@ -776,6 +778,7 @@ static bool lazy_load_segment(struct page *page, void *aux) {
 
     if (file_read_at(new_aux->file, page->frame->kva, page_read_bytes, new_aux->ofs) != (int)page_read_bytes) {
         palloc_free_page(page->frame->kva);
+        free(new_aux);
         return false;
     }
 
