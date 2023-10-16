@@ -147,4 +147,4 @@ make
 cd build
 source ../../activate
 
-$PT_WRITE_CODE2
+$MMAP_READ

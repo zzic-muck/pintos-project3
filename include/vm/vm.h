@@ -44,6 +44,16 @@ struct thread;
 
 #define VM_TYPE(type) ((type) & 7)
 
+
+struct lazy_mmap
+{
+	struct file *file;
+	size_t offset;
+	size_t page_read_bytes;
+	size_t page_zero_bytes;
+	bool writable;
+};
+
 /* The representation of "page".
  * This is kind of "parent class", which has four "child class"es, which are
  * uninit_page, file_page, anon_page, and page cache (project4).

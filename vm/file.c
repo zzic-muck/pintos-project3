@@ -50,6 +50,14 @@ file_backed_destroy (struct page *page) {
 void *
 do_mmap (void *addr, size_t length, int writable,
 		struct file *file, off_t offset) {
+
+	void *old_addr = addr;
+	struct file	*m_file = file_reopen(file);
+
+	
+
+
+	return old_addr;
 }
 
 /* Do the munmap */

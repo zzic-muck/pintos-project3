@@ -873,7 +873,8 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t 
         // printf("load segment; file: %p, ofs: %d, read_bytes: %d\n", file, ofs, page_read_bytes);
         if (!vm_alloc_page_with_initializer(VM_ANON, upage, writable, lazy_load_segment, aux))
             return false;
-               /* Advance. */
+        
+        /* Advance. */
         
         read_start += page_read_bytes;
         read_bytes -= page_read_bytes;

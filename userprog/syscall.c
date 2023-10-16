@@ -36,6 +36,7 @@ int write(int fd, const void *buffer, unsigned size);
 void seek(int fd, unsigned position);
 unsigned tell(int fd);
 void close(int fd);
+void *mmap(void *addr, size_t length, int writable, int fd, off_t offset);
 
 /* File Descriptor 관련 함수 Prototype & Global Variables */
 int allocate_fd(struct file *file);
@@ -142,6 +143,9 @@ void syscall_handler(struct intr_frame *f) {
 
     case SYS_CLOSE:
         close(f->R.rdi);
+        break;
+    case SYS_MMAP:
+        f->R.rax = mmap(f->R.rdi, f->R.rsi, f->R.rdx, f->R.r10, f->R.r8);
         break;
 
     default:
@@ -556,6 +560,14 @@ void fd_table_close() {
     }
     lock_release(&t->fd_lock);
 }
+
+void *mmap(void *addr, size_t length, int writable, int fd, off_t offset){
+    
+    struct file *file = get_file_from_fd(fd);
+
+    do_mmap(addr, length, writable, file, offset);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////// 공식 문서에서 제공되는 Helper 함수 ////////////////////////////
