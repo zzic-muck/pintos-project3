@@ -240,7 +240,10 @@ int process_exec(void *f_name) {
 
     /* 현재 프로세스의 User-side Virtual Memory pml4를 NULL로 처리한 뒤 페이지 테이블 전용 레지스터를 0으로 초기화 (사용 준비) */
     process_cleanup();
-
+    
+#ifdef VM
+    supplemental_page_table_init(&thread_current()->spt);
+#endif
     /* 임시로 저장한 intr_frame을 활용해서 파일을 디스크에서 실제로 로딩, 실패시 -1 반환으로 방어.
        load() 함수에서 _if의 값들을 마저 채우고 현재 스레드로 적용함. */
 
@@ -777,7 +780,7 @@ static bool lazy_load_segment(struct page *page, void *aux) {
         return false;
 
     if (file_read_at(new_aux->file, page->frame->kva, page_read_bytes, new_aux->ofs) != (int)page_read_bytes) {
-        palloc_free_page(page->frame->kva);
+        // palloc_free_page(page->frame->kva);
         free(new_aux);
         return false;
     }

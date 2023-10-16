@@ -47,7 +47,6 @@ struct page {
 	struct frame *frame;   /* Back reference for frame */
 	struct hash_elem hash_elem;
 	bool writable;
-	enum vm_type type;
 
 	/* Your implementation */
 

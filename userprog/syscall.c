@@ -171,7 +171,8 @@ bool pointer_validity_check(void *addr) {
     // pml4_get_page 에러처리 하게 되면 lazy loading 후 페이지 폴트 날 때마다 return false 되므로 하면 안됨!
     // if (pml4_get_page(thread_current()->pml4, addr) == NULL)
     //     return false; // pml4만 확인하는 함수 (나머지 레벨의 page table 들도 검사해야하는데, 우선 이렇게)
-
+    if (!pml4e_walk(thread_current()->pml4, addr, true))
+        return false;
     /* 다 통과했으니 */
     return true;
 }
@@ -268,7 +269,7 @@ int exec(const char *cmd_line) {
     }
 
     /* Debug ; 성공시 다음 값이 출력되면 안됨 */
-    printf("exec() implementation failed (should never print this or return -1)\n");
+    // printf("exec() implementation failed (should never print this or return -1)\n");
 }
 
 /* 제공되는 child의 pid를 기준으로 무기한 대기하는 함수 ; 타겟 child가 종료되면 exit_status를 리턴.
@@ -420,10 +421,6 @@ int write(int fd, const void *buffer, unsigned size) {
     if (fd == 0) {
 
         return -1; // STDIN
-    }
-
-    if (!buffer_validity_check(buffer, size)) {
-        exit(-1); // Validity 확인 결과 실패
     }
 
     if (fd == 1) {

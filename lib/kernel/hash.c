@@ -67,16 +67,12 @@ hash_clear (struct hash *h, hash_action_func *destructor) {
 	h->elem_cnt = 0;
 }
 
-/* Destroys hash table H.
+/* 해시 테이블 H를 파괴한다.
 
-   If DESTRUCTOR is non-null, then it is first called for each
-   element in the hash.  DESTRUCTOR may, if appropriate,
-   deallocate the memory used by the hash element.  However,
-   modifying hash table H while hash_clear() is running, using
-   any of the functions hash_clear(), hash_destroy(),
-   hash_insert(), hash_replace(), or hash_delete(), yields
-   undefined behavior, whether done in DESTRUCTOR or
-   elsewhere. */
+DESTRUCTOR가 비어 있지 않으면 해시의 각 요소에 대해 먼저 호출된다.
+DESTRUCTOR는 필요한 경우 해시 요소에서 사용한 메모리를 해제할 수 있다.
+그러나 hash_clear()가 실행 중일 때 해시 테이블 H를 수정하면
+DESTRUCTOR에서 수행하든 다른 곳에서 수행하든 상관없이 정의되지 않은 동작이 발생힌다. */
 void
 hash_destroy (struct hash *h, hash_action_func *destructor) {
 	if (destructor != NULL)
@@ -140,12 +136,9 @@ hash_delete (struct hash *h, struct hash_elem *e) {
 	return found;
 }
 
-/* Calls ACTION for each element in hash table H in arbitrary
-   order.
-   Modifying hash table H while hash_apply() is running, using
-   any of the functions hash_clear(), hash_destroy(),
-   hash_insert(), hash_replace(), or hash_delete(), yields
-   undefined behavior, whether done from ACTION or elsewhere. */
+/* hash 테이블 H의 각 요소에 대해 ACTION을 무작위 순서로 호출한다.
+ * hash_apply()가 실행 중일 때 hash 테이블 H를 수정하면,
+ * ACTION 또는 다른 곳에서 수행되는지 여부와 관계없이 정의되지 않은 동작을 발생시킨다. */
 void
 hash_apply (struct hash *h, hash_action_func *action) {
 	size_t i;
@@ -163,23 +156,21 @@ hash_apply (struct hash *h, hash_action_func *action) {
 	}
 }
 
-/* Initializes I for iterating hash table H.
+/* 해시 테이블 H를 순회하기 위한 이터레이터 I를 초기화한다.
 
-   Iteration idiom:
+   이터레이션 관용구:
 
    struct hash_iterator i;
 
    hash_first (&i, h);
    while (hash_next (&i))
    {
-   struct foo *f = hash_entry (hash_cur (&i), struct foo, elem);
-   ...do something with f...
+   struct page *p = hash_entry (hash_cur (&i), struct page, elem);
+   ...do something with p...
    }
 
-   Modifying hash table H during iteration, using any of the
-   functions hash_clear(), hash_destroy(), hash_insert(),
-   hash_replace(), or hash_delete(), invalidates all
-   iterators. */
+   순회중에 해시 테이블 H를 수정하면 hash_clear(), hash_destroy(), hash_insert(), hash_replace(),
+   또는 hash_delete()와 같은 함수를 사용하는 것은 모든 이터레이터를 무효화시킨다. */
 void
 hash_first (struct hash_iterator *i, struct hash *h) {
 	ASSERT (i != NULL);
@@ -190,14 +181,11 @@ hash_first (struct hash_iterator *i, struct hash *h) {
 	i->elem = list_elem_to_hash_elem (list_head (i->bucket));
 }
 
-/* Advances I to the next element in the hash table and returns
-   it.  Returns a null pointer if no elements are left.  Elements
-   are returned in arbitrary order.
+/* I를 해시 테이블에서 다음 요소로 이동하고 해당 요소를 반환한다.
+만약 더 이상 요소가 남아있지 않으면 널 포인터를 반환한다. 요소들은 임의의 순서로 반환된다.
 
-   Modifying a hash table H during iteration, using any of the
-   functions hash_clear(), hash_destroy(), hash_insert(),
-   hash_replace(), or hash_delete(), invalidates all
-   iterators. */
+이터레이션 중에 해시 테이블 H를 수정하면 hash_clear(), hash_destroy(), hash_insert(),
+hash_replace(), 또는 hash_delete()와 같은 함수를 사용하는 것은 모든 이터레이터를 무효화시킨다. */
 struct hash_elem *
 hash_next (struct hash_iterator *i) {
 	ASSERT (i != NULL);
@@ -214,9 +202,10 @@ hash_next (struct hash_iterator *i) {
 	return i->elem;
 }
 
-/* Returns the current element in the hash table iteration, or a
-   null pointer at the end of the table.  Undefined behavior
-   after calling hash_first() but before hash_next(). */
+/* ChatGPT
+
+해시 테이블 이터레이션의 현재 요소를 반환하며, 테이블의 끝에서는 널 포인터를 반환한다.
+hash_first()를 호출한 후 hash_next()를 호출하기 전에 정의되지 않은 동작이다. */
 struct hash_elem *
 hash_cur (struct hash_iterator *i) {
 	return i->elem;
@@ -274,7 +263,7 @@ uint64_t
 hash_int (int i) {
 	return hash_bytes (&i, sizeof i);
 }
-
+
 /* Returns the bucket in H that E belongs in. */
 static struct list *
 find_bucket (struct hash *h, struct hash_elem *e) {
