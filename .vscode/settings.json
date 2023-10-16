@@ -58,6 +58,10 @@
         "list.h": "c",
         "intrinsic.h": "c",
         "debug.h": "c",
-        "init.h": "c"
+        "init.h": "c",
+        "stdio.h": "c",
+        "tests.h": "c",
+        "exception.h": "c",
+        "main.h": "c"
     }
 }

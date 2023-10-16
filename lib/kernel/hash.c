@@ -90,14 +90,17 @@ hash_destroy (struct hash *h, hash_action_func *destructor) {
    without inserting NEW. */
 struct hash_elem *
 hash_insert (struct hash *h, struct hash_elem *new) {
+	// 새로운 요소 new가 속해야 할 버킷 찾음
 	struct list *bucket = find_bucket (h, new);
+	// old는 이미 존재하는 동일한 요소
 	struct hash_elem *old = find_elem (h, bucket, new);
 	
 	if (old == NULL)
+		// new 버킷에 삽입
 		insert_elem (h, bucket, new);
 
 	rehash (h);
-
+	// old가 null이 아니면 삽입 실패
 	return old;
 }
 

@@ -10,6 +10,7 @@
 #include "threads/thread.h"
 #include "userprog/gdt.h"
 #include "userprog/process.h" // 관련 파일 헤더들 전부 연결
+
 #include <stdio.h>
 #include <syscall-nr.h>
 
@@ -86,6 +87,10 @@ void syscall_handler(struct intr_frame *f) {
     // 커널-사이드에서 실행된 결과물을 %rax에 넣어서 반환해야 함
 
     int syscall_num = f->R.rax;
+
+    #ifdef VM
+        thread_current() -> rsp = f -> rsp;
+    #endif
 
     switch (syscall_num) {
 
@@ -167,11 +172,17 @@ bool pointer_validity_check(void *addr) {
     if (is_kernel_vaddr(addr))
         return false;
 
-    /* 제공된 주소가 Unmapped일 경우 */
-    if (pml4_get_page(thread_current()->pml4, addr) == NULL)
-        return false; // pml4만 확인하는 함수 (나머지 레벨의 page table 들도 검사해야하는데, 우선 이렇게)
+    
+    if (spt_find_page(&thread_current() -> spt, addr) == NULL) {
+        return false;
+    }
 
+    // /* 제공된 주소가 Unmapped일 경우 */
+    // if (pml4_get_page(thread_current()->pml4, addr) == NULL)
+    //     return false; // pml4만 확인하는 함수 (나머지 레벨의 page table 들도 검사해야하는데, 우선 이렇게)
+    
     /* 다 통과했으니 */
+    
     return true;
 }
 
@@ -259,6 +270,7 @@ int exec(const char *cmd_line) {
     if (cmd_line_copy == NULL) {
         exit(-1);
     }
+
     strlcpy(cmd_line_copy, cmd_line, PGSIZE);
 
     /* Process Exec을 불러서 실패시 에러 반환 */
@@ -402,6 +414,11 @@ int read(int fd, void *buffer, unsigned size) {
     if (!file) {
         return -1; // exit(-1)을 하려다가, 공식 문서에 적힌대로 우선 -1로 바꾼 상태
     }
+
+    if (buffer <= 0x400000) {
+        exit(-1);
+    }
+    
     read_count = file_read(file, buffer, size); // file_read는 size를 (off_t*) 형태로 바라는 것 같은데, 에러가 떠서 일단 일반 사이즈로 넣음
 
     return read_count;
