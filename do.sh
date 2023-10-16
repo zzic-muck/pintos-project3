@@ -147,4 +147,4 @@ make
 cd build
 source ../../activate
 
-$FORK_ONCE
+$PAGE_MERGE_PAR

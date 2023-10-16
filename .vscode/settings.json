@@ -61,6 +61,7 @@
         "init.h": "c",
         "stdio.h": "c",
         "tests.h": "c",
-        "exception.h": "c"
+        "exception.h": "c",
+        "main.h": "c"
     }
 }
