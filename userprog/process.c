@@ -245,7 +245,7 @@ int process_exec(void *f_name) {
        load() 함수에서 _if의 값들을 마저 채우고 현재 스레드로 적용함. */
 
     success = load(file_name, &_if);
-    // printf("process_exec %d\n", success);
+
     palloc_free_page(file_name);
     if (!success)
         return -1;

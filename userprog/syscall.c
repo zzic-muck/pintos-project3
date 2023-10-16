@@ -270,6 +270,7 @@ int exec(const char *cmd_line) {
     if (cmd_line_copy == NULL) {
         exit(-1);
     }
+
     strlcpy(cmd_line_copy, cmd_line, PGSIZE);
 
     /* Process Exec을 불러서 실패시 에러 반환 */
@@ -413,6 +414,11 @@ int read(int fd, void *buffer, unsigned size) {
     if (!file) {
         return -1; // exit(-1)을 하려다가, 공식 문서에 적힌대로 우선 -1로 바꾼 상태
     }
+
+    if (buffer <= 0x400000) {
+        exit(-1);
+    }
+    
     read_count = file_read(file, buffer, size); // file_read는 size를 (off_t*) 형태로 바라는 것 같은데, 에러가 떠서 일단 일반 사이즈로 넣음
 
     return read_count;
