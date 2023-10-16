@@ -147,4 +147,5 @@ make
 cd build
 source ../../activate
 
-$FORK_ONCE
+# $PT_WRITE_CODE
+$PT_GROW_STACK

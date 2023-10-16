@@ -197,6 +197,9 @@ vm_get_frame (void) {
 /* Growing the stack. */
 static void
 vm_stack_growth (void *addr UNUSED) {
+	// 하나 이상의 anon 페이지를 할당하여 스택 크기를 늘림
+	// addr은 faulted 주소에서 유효한 주소
+	vm_alloc_page(VM_ANON, pg_round_down(addr), 1);
 }
 
 /* Handle the fault on write_protected page */
@@ -204,19 +207,42 @@ static bool
 vm_handle_wp (struct page *page UNUSED) {
 }
 
-/* Return true on success */
+/* Return true on success
+ * 유효한 페이지 폴트인지 체크 후 유효하지 않은 페이지에 접근한 폴트라면 찐 페뽈.
+ * 그렇지 않고 bogus fault라면 이는 페이지에서 콘텐츠를 로드하고
+ * 유저 프로그램에게 제어권을 반환해야 한다.
+ * f: 페폴 발생했을 때 그 순간의 레지스터 값들을 담고 있는 구조체
+ * addr: 페이지 폴트를 일으킨 가상 주소
+ * user: rsp값이 VM이 유저/커널 영역중 어디인지. 해당 값이 true일 경우 유저모드에서 페폴 일으켰다는 뜻 
+ * write: true일 경우 해당 페폴이 쓰기 요청이고 그렇지 않을 경우 읽기 요청
+ * non-present: 해당 인자가 false인 겨우 read-only 페이지에 write 하려는 상황 */
 bool
 vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 		bool user UNUSED, bool write UNUSED, bool not_present UNUSED) {
-	struct supplemental_page_table *spt UNUSED = &thread_current ()->spt;
-	struct page *page = spt_find_page(spt, pg_round_down(addr));
-	/* TODO: Validate the fault */
-	/* TODO: Your code goes here */
 
-	if (!page)
+	struct supplemental_page_table *spt UNUSED = &thread_current()->spt;
+	
+	// 페이지 폴트가 발생한 가상 주소 및 인자들이 유효한지 체크
+	if (!is_user_vaddr(addr))
 		return false;
+	
+	// 스택 증가로 page fault 예외를 처리할 수 있는지 확인 후 vm_stack_growth 호출
+	// rsp가 유효하면 스택그로우 호출
+	if (addr == f->rsp && USER_STACK > addr && addr > USER_STACK - (1<<20)) {
+		vm_stack_growth(addr);
+	}
 
-	return vm_do_claim_page (page);
+	// read only page에 write 하려는 상황인지 확인
+	if (not_present) {		// 접근한 메모리가 물리 페이지와 매핑 되지 않은 경우
+		struct page *page = spt_find_page(spt, addr);
+		if (!page)
+			return false;
+		if (write && !page->writable)
+			return false;
+
+		return vm_do_claim_page (page);
+	}
+	return false;
 }
 
 /* Free the page.
@@ -307,21 +333,18 @@ supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
 		void *upage = src_page->va;
 		bool writable = src_page->writable;
 		
-		// if (type == VM_UNINIT) {
-		// 	vm_alloc_page_with_initializer(VM_ANON, upage, writable, src_page->uninit.init, src_page->uninit.aux);
-		// 	continue;	
-		// }
+		if (type == VM_UNINIT) {
+			vm_alloc_page_with_initializer(VM_ANON, upage, writable, src_page->uninit.init, src_page->uninit.aux);
+			continue;	
+		}
 		
 		// 자식에게 새 페이지를 할당
 		// 어차피 ANON으로 만들어주니까 init, aux NULL, NULL
-		// if (!vm_alloc_page(VM_ANON, upage, writable))
-		// 	return false;
+		if (!vm_alloc_page(VM_ANON, upage, writable))
+			return false;
 		
-		// if (!vm_claim_page(upage))
-		// 	return false;
-
-		vm_alloc_page(VM_ANON, upage, writable);
-		vm_claim_page(upage);
+		if (!vm_claim_page(upage))
+			return false;
 
 		struct page *dst_page = spt_find_page(dst, upage);
 

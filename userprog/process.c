@@ -791,14 +791,14 @@ static bool lazy_load_segment(struct page *page, void *aux) {
     return true;
 }
 
-/* 파일의 오프셋 OFS에서 시작하는 세그먼트를 가상 주소 UPAGE에서 로드합니다.
- * 총 가상 메모리 공간은 READ_BYTES + ZERO_BYTES 바이트로 초기화됩니다.
- * 이를 위해 다음과 같은 단계를 따릅니다:
- * UPAGE에서 시작하는 READ_BYTES 바이트는 OFS에서 시작하는 파일로부터 읽어와야 합니다.
- * UPAGE + READ_BYTES에서 시작하는 ZERO_BYTES 바이트는 0으로 설정되어야 합니다.
+/* 파일의 오프셋 OFS에서 시작하는 세그먼트를 가상 주소 UPAGE에서 로드한다.
+ * 총 가상 메모리 공간은 READ_BYTES + ZERO_BYTES 바이트로 초기화된다.
+ * 이를 위해 다음과 같은 단계를 따른다:
+ * UPAGE에서 시작하는 READ_BYTES 바이트는 OFS에서 시작하는 파일로부터 읽어와야 한다.
+ * UPAGE + READ_BYTES에서 시작하는 ZERO_BYTES 바이트는 0으로 설정되어야 한다.
  * 이 함수에 의해 초기화된 페이지는 WRITABLE이 true로 설정된 경우
- * 사용자 프로세스에서 쓰기가 가능해야 하며, 그렇지 않은 경우에는 읽기 전용이어야 합니다.
- * 작업이 성공한 경우 true를 반환하며, 메모리 할당 오류 또는 디스크 읽기 오류가 발생한 경우 false를 반환합니다. */
+ * 사용자 프로세스에서 쓰기가 가능해야 하며, 그렇지 않은 경우에는 읽기 전용이어야 한다.
+ * 작업이 성공한 경우 true를 반환하며, 메모리 할당 오류 또는 디스크 읽기 오류가 발생한 경우 false를 반환한다. */
 static bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes, uint32_t zero_bytes, bool writable) {
     ASSERT((read_bytes + zero_bytes) % PGSIZE == 0);    // 페이지 크기의 배수
     ASSERT(pg_ofs(upage) == 0); // upage가 페이지의 시작점
@@ -812,6 +812,7 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t 
         size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
         size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
+        // 해당 페이지에 대한 정보를 lazy로 전달하기 위해 aux setting
         struct lazy_load_aux *aux = (struct lazy_load_aux*) malloc(sizeof(struct lazy_load_aux));
 
         aux->file = file;
@@ -820,8 +821,7 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t 
         aux->zero_bytes = page_zero_bytes;
         aux->writable = writable;
 
-        // 페이지 할당, 해당 페이지에 대한 정보를 lazy로 전달하기 위한 aux도 설정
-        // 이 함수는 VM_ANON 타입의 페이지를 생성하며, 페이지가 쓰기 가능한지 여부와 초기화
+        // 페이지 할당. 이 함수는 VM_ANON 타입의 페이지를 생성하며, 페이지가 쓰기 가능한지 여부와 초기화
         if (!vm_alloc_page_with_initializer(VM_ANON, upage, writable, lazy_load_segment, aux))
             return false;
 
