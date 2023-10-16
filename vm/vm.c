@@ -75,7 +75,6 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 			uninit_new(page, upage, init, type, aux, file_backed_initializer);
 		}
 		else {
-			free(page);
 			return false;
 		}
 		page->writable = writable;

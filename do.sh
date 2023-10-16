@@ -147,5 +147,5 @@ make
 cd build
 source ../../activate
 
-# $PT_WRITE_CODE
-$PT_GROW_STACK
+$PT_WRITE_CODE2
+# $PT_GROW_STACK

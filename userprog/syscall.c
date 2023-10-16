@@ -383,9 +383,15 @@ int filesize(int fd) {
    fd 0은 input_getc()를 통해서 키보드 입력값을 읽어옴. */
 int read(int fd, void *buffer, unsigned size) {
 
-    if (!buffer_validity_check(buffer, size)) {
+    if (!buffer_validity_check(buffer, size))
         exit(-1);
-    }
+
+    // buffer는 코드 영역이라 쓰기 불가능하므로 예외 처리 해줘야 함
+    uint64_t *pte = pml4e_walk(thread_current()->pml4, buffer, 0);
+    // read only에서 write 요청한 경우 exit(-1)
+    if (*pte && !is_writable(pte))
+        exit(-1);
+
     /* 읽어온 바이트 수를 기록할 변수 초기화 */
     int read_count = 0;
 

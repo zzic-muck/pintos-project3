@@ -108,7 +108,7 @@ struct thread {
 
     struct list_elem elem; /* 원래 포함되어 있는, 가장 기본적인 thread elem */
 
-#ifdef USERPROG
+// #ifdef USERPROG
 
     /* 기본적으로 포함되어있는 멤버 */
     uint64_t *pml4; /* Page map level 4 */
@@ -133,7 +133,7 @@ struct thread {
     int fork_depth;  // 포크 얼마나 했는지 알아야 함
     
 
-#endif
+// #endif
 #ifdef VM
     /* Table for whole virtual memory owned by thread. */
     struct supplemental_page_table spt;
