@@ -10,32 +10,6 @@
 struct list frame_table; //프레임 테이블 전역변수
 //project 3
 
-// /*hash func*/
-// unsigned
-// page_hash (const struct hash_elem *p_, void *aux UNUSED) {
-//   const struct page *p = hash_entry (p_, struct page, hash_elem);
-//   return hash_bytes (&p->va, sizeof p->va);
-// }
-
-// /*less func*/
-// bool
-// page_less (const struct hash_elem *a_,
-//            const struct hash_elem *b_, void *aux UNUSED) {
-//   const struct page *a = hash_entry (a_, struct page, hash_elem);
-//   const struct page *b = hash_entry (b_, struct page, hash_elem);
-
-//   return a->va < b->va;
-// }
-
-// /*insert and delete*/
-// bool page_insert (struct hash *h, struct page *p) {
-// 	printf("page_insert\n");
-// 	return hash_insert (&h, &p->hash_elem);
-// // }
-
-
-
-
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
 void
@@ -141,7 +115,7 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 
 		//spt에 page를 넣어준다.
 		if (!spt_insert_page(spt, page)) {
-			printf("%p\n", page -> va);
+			// printf("%p\n", page -> va);
 			return false;
 		}
 
@@ -217,7 +191,16 @@ vm_get_victim (void) {
 	//clock policy
 	//list 맨 뒤에서부터 하나씩 accessed bit 를 확인하면서 할당되었다면(1이라면) 이를 0으로 변경
 	//할당되지 않았다면 (이미 0이라면) 이를 반환
-	// for (start = list_end(&frame_table); start != list_begin(&frame_table); start = list_prev(start)) {
+	for (start = list_end(&frame_table); start != list_begin(&frame_table); start = list_prev(start)) {
+		victim = list_entry(start, struct frame, frame_elem);
+		if (pml4_is_accessed(t -> pml4, victim -> page -> va)) {
+			pml4_set_accessed(t -> pml4, victim -> page -> va, 0);
+		} else {
+			return victim;
+		}
+	}
+
+	// for (start = e; start != list_end(&frame_table); start = list_next(start)) {
 	// 	victim = list_entry(start, struct frame, frame_elem);
 	// 	if (pml4_is_accessed(t -> pml4, victim -> page -> va)) {
 	// 		pml4_set_accessed(t -> pml4, victim -> page -> va, 0);
@@ -226,23 +209,14 @@ vm_get_victim (void) {
 	// 	}
 	// }
 
-	for (start = e; start != list_end(&frame_table); start = list_next(start)) {
-		victim = list_entry(start, struct frame, frame_elem);
-		if (pml4_is_accessed(t -> pml4, victim -> page -> va)) {
-			pml4_set_accessed(t -> pml4, victim -> page -> va, 0);
-		} else {
-			return victim;
-		}
-	}
-
-	for (start = list_begin(&frame_table); start != e; start = list_next(start)) {
-		victim = list_entry(start, struct frame, frame_elem);
-		if (pml4_is_accessed(t -> pml4, victim -> page -> va)) {
-			pml4_set_accessed(t -> pml4, victim -> page -> va, 0);
-		} else {
-			return victim;
-		}
-	}
+	// for (start = list_begin(&frame_table); start != e; start = list_next(start)) {
+	// 	victim = list_entry(start, struct frame, frame_elem);
+	// 	if (pml4_is_accessed(t -> pml4, victim -> page -> va)) {
+	// 		pml4_set_accessed(t -> pml4, victim -> page -> va, 0);
+	// 	} else {
+	// 		return victim;
+	// 	}
+	// }
 	
 	return victim;
 }
@@ -423,7 +397,7 @@ supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
 		bool writable = src_page -> writable;
 		// type == uninit 이라면 복사하는 페이지도 uninit
 		if (type == VM_UNINIT) {
-			vm_initializer *init = src_page ->uninit.init;
+			vm_initializer *init = src_page -> uninit.init;
 			void *aux = src_page -> uninit.aux;
 			vm_alloc_page_with_initializer (VM_ANON, upage, writable, init, aux);
 			continue;
