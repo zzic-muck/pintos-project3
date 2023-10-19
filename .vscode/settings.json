@@ -61,6 +61,8 @@
         "init.h": "c",
         "vm.h": "c",
         "inspect.h": "c",
-        "mmu.h": "c"
+        "mmu.h": "c",
+        "string.h": "c",
+        "flags.h": "c"
     }
 }

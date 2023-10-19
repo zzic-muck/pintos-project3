@@ -51,6 +51,7 @@ struct lazy_mmap
 	size_t offset;
 	size_t page_read_bytes;
 	size_t page_zero_bytes;
+	void *addr;
 	bool writable;
 };
 
@@ -66,6 +67,7 @@ struct page {
 	/* Your implementation */
 	struct hash_elem hash_elem;
 	bool writable;
+	void *addr;
 
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */

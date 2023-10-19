@@ -5,6 +5,8 @@
 #include "vm/inspect.h"
 #include "threads/vaddr.h"
 #include "include/lib/kernel/hash.h"
+#include "filesys/file.h"
+#include "filesys/filesys.h"
 #include <stdio.h>
 
 struct list frame_table; //프레임 테이블 전역변수
@@ -91,6 +93,7 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 		//process.c 의 load_segment에서 호출함
 		//페이지를 하나 할당하고? 페이지가 사용할 이니셜라이저 넣는다
 		struct page *page = (struct page *)malloc(sizeof(struct page));
+		ASSERT(page != NULL);
 		upage = pg_round_down(upage);
 
 		switch (VM_TYPE(type)) {
@@ -108,7 +111,6 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 			default:
 				break;
 		}
-
 
 		if(!spt_insert_page(spt, page)) {
 			return false;
@@ -129,7 +131,6 @@ spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	/* TODO: Fill this function. */
 	//spt에서 va를 찾아서 page를 반환해준다
 	//hash_find를 쓰면 될듯
-
 	struct page p;
 	va = pg_round_down(va);
 	p.va = va;
@@ -142,7 +143,6 @@ spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	else{
 		page = NULL;
 	}
-
 	return page;
 }
 
@@ -249,26 +249,30 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	/* TODO: Your code goes here */ 
 
 	if(addr < USER_STACK && addr > KERN_BASE){
-		
+		// printf("why??\n");
 		return false;
 	}
+	// printf("addr  어 드 레 스: %p\n", addr);
+	// printf("user, write, writable : %d %d %d\n", user, write, spt_find_page(spt, pg_round_down(addr))->writable);
 
 	if(spt_find_page(spt, pg_round_down(addr)) == NULL){
 		if(pg_round_down(addr) < USER_STACK && pg_round_down(addr) > (USER_STACK - (1<<20)) && addr == f->rsp) 
 		{
+			// printf("why??2\n");
 			vm_stack_growth(pg_round_down(addr));
 		}
 		else{
+			// printf("why??3\n");
 			return false;
 		}
 	}
-	else{
+	else
+	{
 		if(spt_find_page(spt, pg_round_down(addr))->writable == false && write == true){
+			// printf("why??5\n");
 			return false;
 		}
 	}
-	
-	
 
     page = spt_find_page(spt, pg_round_down(addr));
 
@@ -345,12 +349,13 @@ supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
    	hash_first (&i, &src -> spt_page);
    	while (hash_next (&i)) {
 		struct page *src_page = hash_entry(hash_cur(&i), struct page, hash_elem); 
-   		enum vm_type type = src_page -> operations -> type;
+
+		enum vm_type type = src_page -> operations -> type;
 		void *upage = src_page -> va;
 		bool writable = src_page -> writable;
 		vm_initializer *init = src_page ->uninit.init;
 		void *aux = src_page -> uninit.aux;
-
+		
 		// type == uninit 이라면 복사하는 페이지도 uninit
 		if (type == VM_UNINIT) {
 			// vm_initializer *init = src_page ->uninit.init;
@@ -373,8 +378,11 @@ supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
 
 			struct page *dst_page = spt_find_page(dst, upage);
 			memcpy(dst_page->frame->kva, src_page->frame->kva, PGSIZE);
+	
 		}
+		
   	}
+	
 	return true;
 }
 
@@ -382,6 +390,15 @@ supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
 
 void hash_page_destroy (struct hash_elem *e, void *aux) {
 	struct page *page = hash_entry(e, struct page, hash_elem);
+	
+	if(page_get_type(page) == VM_FILE){
+		if(page->file.file != NULL){
+		file_seek(page->file.file, 0);
+		file_write(page->file.file, page->frame->kva, page->file.page_read_bytes);
+		}
+
+	}
+
 	destroy(page);
 	free(page);
 }
@@ -390,6 +407,9 @@ void
 supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
+	
+	// printf(" 킬 킬 킬 킬\n");
 	hash_clear(&spt->spt_page, hash_page_destroy);
 
+	
 }

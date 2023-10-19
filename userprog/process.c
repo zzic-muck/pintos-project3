@@ -324,28 +324,29 @@ void process_exit(void) {
 
     /* 열린 파일 전부 닫기*/
     fd_table_close();
-    // int cnt = 2;
-    // while (cnt < 256) {
-    //     if (table[cnt]) {
-    //         file_close(table[cnt]);
-    //         table[cnt] = NULL;
-    //     }
-    //     cnt++;
-    // }
-
-    if(curr->exec_file){
-        file_close(curr->exec_file);
+    int cnt = 2;
+    while (cnt < 256) {
+        if (table[cnt]) {
+            file_close(table[cnt]);
+            table[cnt] = NULL;
+        }
+        cnt++;
     }
 
-    /* 부모의 wait() 대기 ; 부모가 wait을 해줘야 죽을 수 있음 (한계) */
+    // if(curr->exec_file){
+    //     file_close(curr->exec_file);
+    // }
+
+
+    /* 페이지 테이블 메모리 반환 및 pml4 리셋 */
+    
+    process_cleanup();
+    palloc_free_page(table);
     if (curr->parent_is) {
         sema_up(&curr->wait_sema);
         sema_down(&curr->free_sema);
     }
 
-    /* 페이지 테이블 메모리 반환 및 pml4 리셋 */
-    palloc_free_page(table);
-    process_cleanup();
 }
 
 /* 현재 프로세스의 페이지 테이블 매핑을 초기화하고, 커널 페이지 테이블만 남기는 함수 */
@@ -580,7 +581,6 @@ done:
         t->exec_file = file;
     }
     /* 실행이 끝나고 나면 성공/실패 여부와 무관하게 아래 코드 실행 */
-    // file_close(file);
     return success;
 }
 
@@ -786,7 +786,6 @@ static bool lazy_load_segment(struct page *page, void *aux) {
     off_t ofs = aux_->ofs;
     uint32_t read_bytes = aux_->read_bytes;
     uint32_t zero_bytes = aux_->zero_bytes;
-    bool writable = aux_->writable;
 
     // printf("lazy_load_segment\n");
     file_seek(file, ofs);

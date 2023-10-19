@@ -54,7 +54,7 @@ hash_clear (struct hash *h, hash_action_func *destructor) {
 
 	for (i = 0; i < h->bucket_cnt; i++) {
 		struct list *bucket = &h->buckets[i];
-
+		
 		if (destructor != NULL)
 			while (!list_empty (bucket)) {
 				struct list_elem *list_elem = list_pop_front (bucket);

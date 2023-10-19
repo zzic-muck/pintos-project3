@@ -10,6 +10,7 @@
 #include "threads/thread.h"
 #include "userprog/gdt.h"
 #include "userprog/process.h" // 관련 파일 헤더들 전부 연결
+#include "vm/vm.h"
 #include <stdio.h>
 #include <syscall-nr.h>
 
@@ -37,7 +38,7 @@ void seek(int fd, unsigned position);
 unsigned tell(int fd);
 void close(int fd);
 void *mmap(void *addr, size_t length, int writable, int fd, off_t offset);
-
+void munmap (void *addr);
 /* File Descriptor 관련 함수 Prototype & Global Variables */
 int allocate_fd(struct file *file);
 struct file *get_file_from_fd(int fd);
@@ -147,6 +148,9 @@ void syscall_handler(struct intr_frame *f) {
     case SYS_MMAP:
         f->R.rax = mmap(f->R.rdi, f->R.rsi, f->R.rdx, f->R.r10, f->R.r8);
         break;
+    case SYS_MUNMAP:
+        munmap(f->R.rdi);
+        break;
 
     default:
         printf("Unknown system call: %d\n", syscall_num); // deprecated by placeholder, but kept in place
@@ -178,6 +182,7 @@ bool pointer_validity_check(void *addr) {
     /* 다 통과했으니 */
     return true;
 }
+
 
 /* 유저에게 전달받은 버퍼의 처음과 끝, 그리고 다시 중간을 검사하는 함수 (특히, 버퍼가 커서 복수의 페이지를 사용하는 경우) */
 bool buffer_validity_check(void *buffer, unsigned size) {
@@ -384,9 +389,20 @@ int filesize(int fd) {
    fd 0은 input_getc()를 통해서 키보드 입력값을 읽어옴. */
 int read(int fd, void *buffer, unsigned size) {
 
-    if (!buffer_validity_check(buffer, size)) {
+    // printf("fd    buffer   size\n");
+    // printf("%d    %p   %d\n", fd, buffer, size);
+    // printf("------------------------------------------------------------\n");
+
+    if (spt_find_page(&thread_current()->spt, buffer)->writable == 0){
+
         exit(-1);
     }
+
+    if (!buffer_validity_check(buffer, size)) {
+
+        exit(-1);
+    }
+
     /* 읽어온 바이트 수를 기록할 변수 초기화 */
     int read_count = 0;
 
@@ -402,16 +418,11 @@ int read(int fd, void *buffer, unsigned size) {
     /* fd = 0이 아닐 경우 */
     struct file *file = get_file_from_fd(fd);
     if (!file) {
+        
         return -1; // exit(-1)을 하려다가, 공식 문서에 적힌대로 우선 -1로 바꾼 상태
     }
 
-    if(buffer <= 0x400000){
-        exit(-1);
-    }
-    // printf("file pointer    %p    \n", buffer);
-
     read_count = file_read(file, buffer, size); // file_read는 size를 (off_t*) 형태로 바라는 것 같은데, 에러가 떠서 일단 일반 사이즈로 넣음
-    
     return read_count;
 }
 
@@ -564,8 +575,19 @@ void fd_table_close() {
 void *mmap(void *addr, size_t length, int writable, int fd, off_t offset){
     
     struct file *file = get_file_from_fd(fd);
+ 
+    if(length == 0 || file == NULL || spt_find_page(&thread_current()->spt, addr) != NULL || (size_t)addr % PGSIZE != 0 ){
+        return NULL;
+    }
 
-    do_mmap(addr, length, writable, file, offset);
+    // printf("Addr : %d\n", (size_t)addr % PGSIZE);
+    
+    return do_mmap(addr, length, writable, file, offset);
+}
+
+
+void munmap (void *addr){
+    do_munmap(addr);
 }
 
 
