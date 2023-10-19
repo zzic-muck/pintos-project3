@@ -315,12 +315,10 @@ void process_exit(void) {
 
     struct thread *curr = thread_current();
     struct file **table = curr->fd_table;
-
     /* Debug */
     if (!curr->parent_is) {
         printf("%s\n", curr->name);
     }
-
     /* 열린 파일 전부 닫기*/
     fd_table_close();
     int cnt = 2;
@@ -340,10 +338,13 @@ void process_exit(void) {
     /* 페이지 테이블 메모리 반환 및 pml4 리셋 */
     
     process_cleanup();
+    
     if (curr->parent_is) {
         sema_up(&curr->wait_sema);
         sema_down(&curr->free_sema);
     }
+       
+
     palloc_free_page(table);
 
 }

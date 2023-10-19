@@ -63,6 +63,7 @@
         "inspect.h": "c",
         "mmu.h": "c",
         "string.h": "c",
-        "flags.h": "c"
+        "flags.h": "c",
+        "bitmap.h": "c"
     }
 }

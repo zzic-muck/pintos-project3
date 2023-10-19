@@ -576,11 +576,11 @@ void *mmap(void *addr, size_t length, int writable, int fd, off_t offset){
     
     struct file *file = get_file_from_fd(fd);
  
-    if(length == 0 || file == NULL || spt_find_page(&thread_current()->spt, addr) != NULL || (size_t)addr % PGSIZE != 0 || offset > length){
+    if(length == 0 || file == NULL || spt_find_page(&thread_current()->spt, addr) != NULL || (size_t)addr % PGSIZE != 0 || offset % PGSIZE != 0){
         return NULL;
     }
 
-    if(is_kernel_vaddr(addr) || addr + length == 0){
+    if(is_kernel_vaddr(addr) || (long)length < 0){
         return NULL;
     }
 

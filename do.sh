@@ -147,4 +147,4 @@ make -j
 cd build
 source ../../activate
 
-$LAZY_FILE
+$MMAP_UNMAP

@@ -220,7 +220,7 @@ vm_get_frame (void) {
 		//희생자 로직 필요
 	}
 		
-	// list_push_back(&frame_table, &frame->frame_elem); //프레임을 프레임테이블에 넣어준다
+	list_push_back(&frame_table, &frame->frame_elem); //프레임을 프레임테이블에 넣어준다
 	frame->page = NULL;
 
 	ASSERT (frame != NULL);
@@ -392,10 +392,11 @@ void hash_page_destroy (struct hash_elem *e, void *aux) {
 		}
 
 	}
-
+	hash_delete(&thread_current()->spt, &page->hash_elem);
 	destroy(page);
 	free(page);
 }
+ 
 /* Free the resource hold by the supplemental page table */
 void
 supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
