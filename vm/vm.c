@@ -153,7 +153,7 @@ vm_evict_frame (void) {
 
 	swap_out(victim->page);	// 페이지 스왑 아웃
 	
-	return victim;
+	return victim;	// 빈 프레임 반환
 }
 
 /* 유저풀에서 palloc_get_page를 호출함으로써 새로운 물리 페이지를 가져온다.
@@ -163,10 +163,10 @@ vm_evict_frame (void) {
  * 다시 말해, 유저풀 메모리가 가득 차 있는 경우 사용 가능한 메모리 공간을 확보하기 위해 페이지를 대체합니다.*/
 static struct frame *
 vm_get_frame (void) {
-	// anonymous case를 위해 일단 PAL_ZERO
-	struct frame *new_frame = (struct frame *)malloc(sizeof(struct frame));	// 할당하기 위한 프레임 생성
+	struct frame *new_frame = (struct frame *)malloc(sizeof(struct frame));	// 할당하기 위한 유저 물리 메모리 프레임 생성
 
 	// new_frame의 kva에 user pool의 페이지 할당
+	// anonymous case를 위해 PAL_ZERO 플래그 설정(프레임 내용 0으로 초기화)
 	new_frame->kva = palloc_get_page(PAL_USER | PAL_ZERO);	// 물리 메모리 할당 후 그 위치의 kva 반환
 	
 	if  (!new_frame || !new_frame->kva) {
@@ -176,10 +176,10 @@ vm_get_frame (void) {
 
 	// user pool로부터 물리 메모리 할당 실패 시
 	if (!new_frame->kva) {
-		// user pool이 다 찼다는 뜻이므로 evicted_frame으로 빈자리 만들어줌
-		// 페이지 swap out -> 삭제할 페이지 디스크로 이동
-		new_frame = vm_evict_frame();
-		new_frame->page = NULL;	// 구조체 멤버 초기화
+		// user pool이 다 찼다는 뜻(모두 사용중)이므로 evicted_frame으로 빈자리 만들어줌
+		// 페이지 swap out 기법을 사용하여 새로운 물리 메모리 할당: 삭제할 페이지 디스크로 이동
+		new_frame = vm_evict_frame();	// 페이지 스왑아웃을 수행하여 빈 프레임 반환
+		new_frame->page = NULL;		// 새로운 프레임 초기화
 		return new_frame;
 	}
 
@@ -190,7 +190,7 @@ vm_get_frame (void) {
 	ASSERT (new_frame != NULL);
 	ASSERT (new_frame->page == NULL);
 	
-	return new_frame;
+	return new_frame;	// 물리 메모리 프레임 성공적으로 할당 시 프레임 포인터 반환
 }
 
 /* Growing the stack. */
@@ -198,7 +198,9 @@ static void
 vm_stack_growth (void *addr UNUSED) {
 	// 하나 이상의 anon 페이지를 할당하여 스택 크기를 늘림
 	// addr은 faulted 주소에서 유효한 주소
-	vm_alloc_page(VM_ANON, pg_round_down(addr), 1);
+	addr = pg_round_down(addr);
+	if (vm_alloc_page(VM_ANON, addr, true))
+		thread_current()->stack_bottom -= PGSIZE;	// stack_bottom 갱신해줌
 }
 
 /* Handle the fault on write_protected page */
@@ -218,7 +220,7 @@ vm_handle_wp (struct page *page UNUSED) {
 bool
 vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 		bool user UNUSED, bool write UNUSED, bool not_present UNUSED) {
-
+	struct thread *curr = thread_current();
 	struct supplemental_page_table *spt UNUSED = &thread_current()->spt;
 	
 	// 페이지 폴트가 발생한 가상 주소 및 인자들이 유효한지 체크
@@ -227,15 +229,16 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	
 	// 스택 증가로 page fault 예외를 처리할 수 있는지 확인 후 vm_stack_growth 호출
 	// rsp가 유효하면 스택그로우 호출
-	if (addr == f->rsp && USER_STACK > addr && addr > USER_STACK - (1<<20)) {
+	if (USER_STACK - (1<<20) <= addr && curr->rsp_stack-8 <= addr && addr <= curr->stack_bottom)
 		vm_stack_growth(addr);
-	}
 
-	// read only page에 write 하려는 상황인지 확인
-	if (not_present) {		// 접근한 메모리가 물리 페이지와 매핑 되지 않은 경우
+	// 접근한 메모리가 물리 페이지와 매핑 되지 않은 경우
+	if (not_present) {
 		struct page *page = spt_find_page(spt, addr);
 		if (!page)
 			return false;
+			
+		// read only page에 write 하려는 상황인지 확인
 		if (write && !page->writable)
 			return false;
 

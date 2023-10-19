@@ -10,6 +10,7 @@
 #include "threads/thread.h"
 #include "userprog/gdt.h"
 #include "userprog/process.h" // 관련 파일 헤더들 전부 연결
+#include "vm/vm.h"
 #include <stdio.h>
 #include <syscall-nr.h>
 
@@ -36,6 +37,7 @@ int write(int fd, const void *buffer, unsigned size);
 void seek(int fd, unsigned position);
 unsigned tell(int fd);
 void close(int fd);
+void *mmap(void *addr, size_t length, int writable, int fd, off_t offset);
 
 /* File Descriptor 관련 함수 Prototype & Global Variables */
 int allocate_fd(struct file *file);
@@ -143,13 +145,55 @@ void syscall_handler(struct intr_frame *f) {
     case SYS_CLOSE:
         close(f->R.rdi);
         break;
+    
+    case SYS_MMAP:
+        f->R.rax = mmap(f->R.rdi, f->R.rsi, f->R.rdx, f->R.r10, f->R.r8);
+        break;
+    
+    case SYS_MUNMAP:
+        break;
 
     default:
         printf("Unknown system call: %d\n", syscall_num); // deprecated by placeholder, but kept in place
         thread_exit();
     }
-
     return;
+}
+
+/* addr: 메모리 매핑 작업이 시작되는 위치 (메모리 영역의 시작 위치)
+ * addr에서부터 시작하여 지정된 length만큼의 메모리를 할당하고 파일 또는 다른 리소스를 이 메모리에 매핑한다. */
+void *mmap(void *addr, size_t length, int writable, int fd, off_t offset) {
+    // 첫번째 검증
+    if (offset % PGSIZE != 0)
+        return false;
+
+    // 두번째 검증
+    if (!addr || pg_round_down(addr) != addr || is_kernel_vaddr(addr))
+        return false;
+
+    // 세번째 검증
+    if (length <= 0)
+        return false;
+    
+    // 네번째 검증
+    struct thread *curr = thread_current();
+    if (spt_find_page(&curr->spt, addr))
+        return false;
+    
+    // 마지막 검증
+    // if (fd == 0 || fd == 1)
+    //     return true;
+
+    // else if (fd >= 2 && fd < LOADER_ARGS_LEN) {
+    //     if (curr->fd_table[fd])
+    //         return true;
+    // }
+    // return false;
+    return do_mmap(addr, length, writable, curr->fd_table[fd], offset);  // 검증 성공적으로 통과 시 호출
+}
+
+void munmap(void *addr) {
+    do_munmap(addr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -389,6 +433,7 @@ int read(int fd, void *buffer, unsigned size) {
     // buffer는 코드 영역이라 쓰기 불가능하므로 예외 처리 해줘야 함
     uint64_t *pte = pml4e_walk(thread_current()->pml4, buffer, 0);
     // read only에서 write 요청한 경우 exit(-1)
+    
     if (*pte && !is_writable(pte))
         exit(-1);
 

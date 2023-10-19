@@ -113,6 +113,10 @@ static void page_fault(struct intr_frame *f) {
 
 #ifdef VM
     /* For project 3 and later. */
+    if (user)
+        // 유저레벨에 해당하는 rsp를 미리 저장해두어야 추후 syscall 에러를 처리하다가 fault가 났을 때 올바른 유저 스택값을 얻을 수 있음
+        thread_current()->rsp_stack = f->rsp;
+
     if (vm_try_handle_fault(f, fault_addr, user, write, not_present))   // 페이지 폴트 처리
         return;
 #endif

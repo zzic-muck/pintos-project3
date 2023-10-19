@@ -52,7 +52,7 @@ struct page {
 
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */
-	union {
+	union {		// union: 상속 기능 구현 (오버라이딩을 function pointer로 구현한 것)
 		struct uninit_page uninit;
 		struct anon_page anon;
 		struct file_page file;
