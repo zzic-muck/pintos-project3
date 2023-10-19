@@ -7,6 +7,7 @@
 #include "include/lib/kernel/hash.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
+#include "threads/mmu.h"
 #include <stdio.h>
 
 struct list frame_table; //프레임 테이블 전역변수
@@ -247,29 +248,22 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	struct page *page = NULL;
 	/* TODO: Validate the fault */
 	/* TODO: Your code goes here */ 
-
-	if(addr < USER_STACK && addr > KERN_BASE){
-		// printf("why??\n");
+	if(user && is_kernel_vaddr(addr)){
 		return false;
 	}
-	// printf("addr  어 드 레 스: %p\n", addr);
-	// printf("user, write, writable : %d %d %d\n", user, write, spt_find_page(spt, pg_round_down(addr))->writable);
-
+	
 	if(spt_find_page(spt, pg_round_down(addr)) == NULL){
 		if(pg_round_down(addr) < USER_STACK && pg_round_down(addr) > (USER_STACK - (1<<20)) && addr == f->rsp) 
-		{
-			// printf("why??2\n");
+		{	
 			vm_stack_growth(pg_round_down(addr));
 		}
 		else{
-			// printf("why??3\n");
 			return false;
 		}
 	}
 	else
-	{
+	{	
 		if(spt_find_page(spt, pg_round_down(addr))->writable == false && write == true){
-			// printf("why??5\n");
 			return false;
 		}
 	}
@@ -301,8 +295,8 @@ vm_claim_page (void *va UNUSED) {
 	// vm_alloc_page(VM_ANON, va, false);
 	va = pg_round_down(va);
 	vm_alloc_page(VM_ANON, va, true);
+	
 	page = spt_find_page(&thread_current()->spt, va);
-
 	if(page == NULL) 
 		return false;
 
@@ -392,9 +386,9 @@ void hash_page_destroy (struct hash_elem *e, void *aux) {
 	struct page *page = hash_entry(e, struct page, hash_elem);
 	
 	if(page_get_type(page) == VM_FILE){
-		if(page->file.file != NULL){
-		file_seek(page->file.file, 0);
-		file_write(page->file.file, page->frame->kva, page->file.page_read_bytes);
+		if(page->file.file != NULL && pml4_is_dirty(thread_current()->pml4, page->va)){
+			file_seek(page->file.file, 0);
+			file_write(page->file.file, page->frame->kva, page->file.page_read_bytes);
 		}
 
 	}

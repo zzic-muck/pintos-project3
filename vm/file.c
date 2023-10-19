@@ -69,8 +69,8 @@ bool lazy_do_mmap(struct page *page, void *aux){
 	page->file.file = file;
 	page->file.page_read_bytes = page_read_bytes;
 	page->file.offset = offset;
-	// printf("page_read_bytes : %d\n", page_read_bytes);
-	// free(lazy_mmap);
+	page->file.tolength = lazy_mmap->tolegnth;
+	free(lazy_mmap);
 	return true;
 }
 
@@ -81,7 +81,8 @@ do_mmap (void *addr, size_t length, int writable,
 
 	void *old_addr = addr;
 	struct file	*m_file = file_reopen(file);
-    
+    size_t tolength = length;
+
  	while(length > 0){
 		struct lazy_mmap *lazy_mmap = malloc(sizeof(struct lazy_mmap));
 		size_t page_read_bytes = length < PGSIZE ? length : PGSIZE;
@@ -90,7 +91,7 @@ do_mmap (void *addr, size_t length, int writable,
 		lazy_mmap->file = m_file;
 		lazy_mmap->offset = offset;
 		lazy_mmap->page_read_bytes = page_read_bytes;
-		lazy_mmap->page_zero_bytes = 0;
+		lazy_mmap->tolegnth = tolength;
 		lazy_mmap->writable = writable;
 		lazy_mmap->addr = addr;
 
@@ -117,15 +118,33 @@ do_mmap (void *addr, size_t length, int writable,
 /* Do the munmap */
 void 
 do_munmap (void *addr) {
+	int cnt = 0;
+
+
+	addr = pg_round_down(addr);
 	struct page *page = spt_find_page(&thread_current()->spt, addr);
-
-	file_seek(page->file.file, 0);
-	file_write(page->file.file ,page->frame->kva, page->file.page_read_bytes);
-	// file_close(page->file.file);
-
+	cnt = page->file.tolength / PGSIZE;
 	
+	while(cnt > 0){
+
+	page = spt_find_page(&thread_current()->spt, addr);
+
 	if(!pml4_is_dirty(thread_current()->pml4, addr)){
-		supplemental_page_table_kill(&thread_current()->spt);
+		
+		pml4_clear_page(thread_current()->pml4, addr);
+		palloc_free_page(page->frame->kva);
+		hash_delete(&thread_current()->spt, &page->hash_elem);
+		free(page);
+
 	}
+	else{
+		file_seek(page->file.file, page->file.offset);
+		file_write(page->file.file ,page->frame->kva, page->file.page_read_bytes);
+		// pml4_clear_page(thread_current()->pml4, addr);
+		// pml4_destroy(thread_current()->pml4);
+	}
+	cnt --;
+	addr += PGSIZE;
+}
 
 }

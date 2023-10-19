@@ -260,7 +260,7 @@ pid_t fork(const char *thread_name, struct intr_frame *snapshot) {
 /* 현재 구동중인 프로세스를 cmd_line이라는 이름을 가진 executable로 바꾸는 함수 (switch execution state of same process).
    성공하면 리턴값이 없고, 실패시 exit state -1으로 종료됨 ; exec을 부른 스레드의 이름을 바꾸는게 아니고, 열려있는 파일들은 유지됨. */
 int exec(const char *cmd_line) {
-
+    
     /* 전달받은 cmd_line 값 (파일명 + argv)을 복사 */
     char *cmd_line_copy;
     cmd_line_copy = palloc_get_page(0);
@@ -576,10 +576,15 @@ void *mmap(void *addr, size_t length, int writable, int fd, off_t offset){
     
     struct file *file = get_file_from_fd(fd);
  
-    if(length == 0 || file == NULL || spt_find_page(&thread_current()->spt, addr) != NULL || (size_t)addr % PGSIZE != 0 ){
+    if(length == 0 || file == NULL || spt_find_page(&thread_current()->spt, addr) != NULL || (size_t)addr % PGSIZE != 0 || offset > length){
         return NULL;
     }
 
+    if(is_kernel_vaddr(addr) || addr + length == 0){
+        return NULL;
+    }
+
+   
     // printf("Addr : %d\n", (size_t)addr % PGSIZE);
     
     return do_mmap(addr, length, writable, file, offset);

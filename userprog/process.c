@@ -107,7 +107,6 @@ tid_t process_fork(const char *name, struct intr_frame *if_) {
 
     /* 스레드 생성, 리턴되는 pid 값 캡쳐 */
     tid_t pid = thread_create(name, PRI_DEFAULT, __do_fork, thread_current());
-
     /* 만일 스레드 생성에 실패했다면 ERROR 반환  */
     if (pid == TID_ERROR) {
         return TID_ERROR;
@@ -341,11 +340,11 @@ void process_exit(void) {
     /* 페이지 테이블 메모리 반환 및 pml4 리셋 */
     
     process_cleanup();
-    palloc_free_page(table);
     if (curr->parent_is) {
         sema_up(&curr->wait_sema);
         sema_down(&curr->free_sema);
     }
+    palloc_free_page(table);
 
 }
 

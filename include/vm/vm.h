@@ -50,7 +50,7 @@ struct lazy_mmap
 	struct file *file;
 	size_t offset;
 	size_t page_read_bytes;
-	size_t page_zero_bytes;
+	size_t tolegnth;
 	void *addr;
 	bool writable;
 };

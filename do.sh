@@ -147,4 +147,4 @@ make -j
 cd build
 source ../../activate
 
-$MMAP_CLEAN
+$LAZY_FILE
