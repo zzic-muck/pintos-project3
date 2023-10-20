@@ -30,7 +30,6 @@ enum vm_type {
 #include "vm/uninit.h"
 #include "vm/anon.h"
 #include "vm/file.h"
-#include "include/lib/kernel/hash.h"
 #ifdef EFILESYS
 #include "filesys/page_cache.h"
 #endif
@@ -126,8 +125,6 @@ void spt_remove_page (struct supplemental_page_table *spt, struct page *page);
 //project 3
 unsigned page_hash_func (const struct hash_elem *p_, void *aux UNUSED);
 static unsigned page_less_func (const struct hash_elem *a, const struct hash_elem *b, void *aux);
-bool page_insert(struct hash *h, struct page *p);
-bool page_delete (struct hash *h, struct page *p);
 //project 3
 
 void vm_init (void);

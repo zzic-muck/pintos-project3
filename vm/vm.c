@@ -1,6 +1,7 @@
 /* vm.c: Generic interface for virtual memory objects. */
 
 #include "threads/malloc.h"
+#include "userprog/process.h"
 #include "vm/vm.h"
 #include "vm/inspect.h"
 #include "threads/vaddr.h"
@@ -39,19 +40,6 @@ static unsigned page_less_func(const struct hash_elem *a, const struct hash_elem
 	const struct page *p_a = hash_entry(a, struct page, hash_elem);
 	const struct page *p_b = hash_entry(b, struct page, hash_elem);
 	return (uint64_t)p_a -> va < (uint64_t)p_b -> va;
-}
-
-//해당 페이지에 들어있는 hash_elem 구조체를 인자로 받은 해시 테이블에 삽입하는 함수
-bool page_insert(struct hash *h, struct page *p) {
-	if (!hash_insert (h, &p -> hash_elem)) {
-		return true;
-	} else {
-		return false;
-	}
-}
-
-bool page_delete (struct hash *h, struct page *p) {
-  return hash_delete (&h, &p->hash_elem);
 }
 //project 3
 
@@ -115,7 +103,6 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 
 		//spt에 page를 넣어준다.
 		if (!spt_insert_page(spt, page)) {
-			// printf("%p\n", page -> va);
 			return false;
 		}
 
@@ -139,14 +126,13 @@ spt_find_page (struct supplemental_page_table *spt, void *va) {
 	dummy_page->va = pg_round_down(va);
 	//해시 함수를 이용하여 페이지 검색
 	e = hash_find(&spt -> spt_hash, &dummy_page -> hash_elem);
+	free(dummy_page);
 
-	if (e != NULL) {
-		dummy_page = hash_entry(e, struct page, hash_elem);
-	} else {
-		dummy_page = NULL;
+	if (e == NULL) {
+		return NULL;
 	}
 
-	return dummy_page;
+	return hash_entry(e, struct page, hash_elem);
 	//project 3
 
 }
@@ -157,9 +143,11 @@ spt_insert_page (struct supplemental_page_table *spt UNUSED,
 		struct page *page UNUSED) {
 
 	//project 3
-	return page_insert(&spt -> spt_hash, page);
+	if (hash_insert(&spt -> spt_hash, &page -> hash_elem) == NULL) {
+		return true;
+	}
+	return false;
 	//project 3
-
 }
 
 void
@@ -188,10 +176,19 @@ vm_get_victim (void) {
 	// 2. If accessed, clear the accessed bit.
 	// 3. If not accessed, set this frame as the victim.
 
-	//clock policy
-	//list 맨 뒤에서부터 하나씩 accessed bit 를 확인하면서 할당되었다면(1이라면) 이를 0으로 변경
-	//할당되지 않았다면 (이미 0이라면) 이를 반환
-	for (start = list_end(&frame_table); start != list_begin(&frame_table); start = list_prev(start)) {
+	// clock policy
+	// list 맨 뒤에서부터 하나씩 accessed bit 를 확인하면서 할당되었다면(1이라면) 이를 0으로 변경
+	// 할당되지 않았다면 (이미 0이라면) 이를 반환
+	// for (start = list_end(&frame_table); start != list_begin(&frame_table); start = list_prev(start)) {
+	// 	victim = list_entry(start, struct frame, frame_elem);
+	// 	if (pml4_is_accessed(t -> pml4, victim -> page -> va)) {
+	// 		pml4_set_accessed(t -> pml4, victim -> page -> va, 0);
+	// 	} else {
+	// 		return victim;
+	// 	}
+	// }
+
+	for (start = e; start != list_end(&frame_table); start = list_next(start)) {
 		victim = list_entry(start, struct frame, frame_elem);
 		if (pml4_is_accessed(t -> pml4, victim -> page -> va)) {
 			pml4_set_accessed(t -> pml4, victim -> page -> va, 0);
@@ -200,23 +197,14 @@ vm_get_victim (void) {
 		}
 	}
 
-	// for (start = e; start != list_end(&frame_table); start = list_next(start)) {
-	// 	victim = list_entry(start, struct frame, frame_elem);
-	// 	if (pml4_is_accessed(t -> pml4, victim -> page -> va)) {
-	// 		pml4_set_accessed(t -> pml4, victim -> page -> va, 0);
-	// 	} else {
-	// 		return victim;
-	// 	}
-	// }
-
-	// for (start = list_begin(&frame_table); start != e; start = list_next(start)) {
-	// 	victim = list_entry(start, struct frame, frame_elem);
-	// 	if (pml4_is_accessed(t -> pml4, victim -> page -> va)) {
-	// 		pml4_set_accessed(t -> pml4, victim -> page -> va, 0);
-	// 	} else {
-	// 		return victim;
-	// 	}
-	// }
+	for (start = list_begin(&frame_table); start != e; start = list_next(start)) {
+		victim = list_entry(start, struct frame, frame_elem);
+		if (pml4_is_accessed(t -> pml4, victim -> page -> va)) {
+			pml4_set_accessed(t -> pml4, victim -> page -> va, 0);
+		} else {
+			return victim;
+		}
+	}
 	
 	return victim;
 }
@@ -230,7 +218,7 @@ vm_evict_frame (void) {
 	//project 3.
 	swap_out (victim -> page);
 	//project 3.
-	return NULL;
+	return victim;
 }
 
 /* palloc() and get frame. If there is no available page, evict the page
@@ -244,7 +232,7 @@ vm_get_frame (void) {
 	//malloc으로 빈 frame 할당
 	struct frame *new_frame = (struct frame *)malloc(sizeof(struct frame));
 	if (new_frame == NULL || new_frame -> kva == NULL) {
-		PANIC("todo");
+		// PANIC("todo");
 		return NULL;
 	}
 	
@@ -258,7 +246,6 @@ vm_get_frame (void) {
 		//hash에서도 삭제하는 코드 필요..
 		new_frame -> page = NULL;
 		return new_frame;
-		// PANIC("todo");
 	}
 	//frame_table linked list에 frame_elem 추가
 	list_push_back(&frame_table, &new_frame->frame_elem);
@@ -277,6 +264,9 @@ vm_stack_growth (void *addr UNUSED) {
 	//stack 크기를 증가시키기 위해서 anon page를 하나 이상 할당하여 주어진 주소가 더이상 예외주소가 되지 않도록 해야함
 	//할당할 때 addr을 PGSIZE로 내림하여 처리
 	vm_alloc_page(VM_ANON|VM_MARKER_0, pg_round_down(addr),1);
+	// if (vm_alloc_page(VM_ANON|VM_MARKER_0, pg_round_down(addr),1)) {
+	// 	// thread_current () -> stack_bottom -= PGSIZE;
+	// }
 }
 
 /* Handle the fault on write_protected page */
@@ -299,6 +289,7 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	if (is_kernel_vaddr(addr)) {
 		return false;
 	}
+
 	//접근한 메모리의 physical page가 존재하지 않는 경우
 	if (not_present) {
 		void *rsp = f -> rsp;
@@ -431,5 +422,17 @@ void
 supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
+
+	// struct hash_iterator *i;
+	// struct frame *frame;
+	// hash_first(&i, &spt -> spt_hash);
+	// while (hash_next(&i)) {
+	// 	struct page *page = hash_entry(hash_cur (&i), struct page, hash_elem);
+	// 	frame = page -> frame;
+	// 	if (page -> operations -> type == VM_FILE) {
+	// 		do_munmap(page -> va);
+	// 	}
+	// } 
 	hash_clear (&spt -> spt_hash, hash_page_destroy);
+	// free(frame);
 }

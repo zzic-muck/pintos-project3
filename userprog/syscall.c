@@ -38,7 +38,9 @@ int write(int fd, const void *buffer, unsigned size);
 void seek(int fd, unsigned position);
 unsigned tell(int fd);
 void close(int fd);
+
 void *mmap (void *addr, size_t length, int writable, int fd, off_t offset);
+void munmap (void *addr);
 /* File Descriptor 관련 함수 Prototype & Global Variables */
 int allocate_fd(struct file *file);
 struct file *get_file_from_fd(int fd);
@@ -73,6 +75,7 @@ void syscall_init(void) {
      * until the syscall_entry swaps the userland stack to the kernel
      * mode stack. Therefore, we masked the FLAG_FL. */
     write_msr(MSR_SYSCALL_MASK, FLAG_IF | FLAG_TF | FLAG_DF | FLAG_IOPL | FLAG_AC | FLAG_NT);
+    // lock_init(&filesys_lock);
 }
 
 /* System Call Interface 역할을 하는 함수. */
@@ -97,6 +100,7 @@ void syscall_handler(struct intr_frame *f) {
 
     case SYS_HALT:
         halt();
+        break;
 
     case SYS_EXIT:
         exit(f->R.rdi);
@@ -151,7 +155,7 @@ void syscall_handler(struct intr_frame *f) {
         break;
 
     case SYS_MMAP:
-        mmap(f->R.rdi, f->R.rsi, f->R.rdx, f->R.r10, f->R.r8);
+        f -> R.rax = mmap(f->R.rdi, f->R.rsi, f->R.rdx, f->R.r10, f->R.r8);
         break;
 
     case SYS_MUNMAP:

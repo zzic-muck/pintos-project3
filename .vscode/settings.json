@@ -65,6 +65,7 @@
         "main.h": "c",
         "vm.h": "c",
         "stdbool.h": "c",
-        "malloc.h": "c"
+        "malloc.h": "c",
+        "mmu.h": "c"
     }
 }
