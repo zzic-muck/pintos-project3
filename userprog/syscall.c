@@ -38,6 +38,7 @@ void seek(int fd, unsigned position);
 unsigned tell(int fd);
 void close(int fd);
 void *mmap(void *addr, size_t length, int writable, int fd, off_t offset);
+void munmap(void *addr);
 
 /* File Descriptor 관련 함수 Prototype & Global Variables */
 int allocate_fd(struct file *file);
@@ -151,6 +152,7 @@ void syscall_handler(struct intr_frame *f) {
         break;
     
     case SYS_MUNMAP:
+        munmap(f->R.rdi);
         break;
 
     default:
@@ -164,21 +166,25 @@ void syscall_handler(struct intr_frame *f) {
  * addr에서부터 시작하여 지정된 length만큼의 메모리를 할당하고 파일 또는 다른 리소스를 이 메모리에 매핑한다. */
 void *mmap(void *addr, size_t length, int writable, int fd, off_t offset) {
     // 첫번째 검증
-    if (offset % PGSIZE != 0)
+    if (offset % PGSIZE != 0) {
         return false;
+    }
 
     // 두번째 검증
-    if (!addr || pg_round_down(addr) != addr || is_kernel_vaddr(addr))
+    if (!addr || pg_round_down(addr) != addr || is_kernel_vaddr(addr)) {
         return false;
+    }
 
     // 세번째 검증
-    if (length <= 0)
+    if (length <= 0) {
         return false;
+    }
     
     // 네번째 검증
     struct thread *curr = thread_current();
-    if (spt_find_page(&curr->spt, addr))
+    if (spt_find_page(&curr->spt, addr)){
         return false;
+    }
     
     // 마지막 검증
     // if (fd == 0 || fd == 1)
@@ -455,7 +461,6 @@ int read(int fd, void *buffer, unsigned size) {
         return -1; // exit(-1)을 하려다가, 공식 문서에 적힌대로 우선 -1로 바꾼 상태
     }
     read_count = file_read(file, buffer, size); // file_read는 size를 (off_t*) 형태로 바라는 것 같은데, 에러가 떠서 일단 일반 사이즈로 넣음
-
     return read_count;
 }
 

@@ -70,27 +70,27 @@ off_t file_read(struct file *file, void *buffer, off_t size) {
  * The file's current position is unaffected. */
 off_t file_read_at(struct file *file, void *buffer, off_t size, off_t file_ofs) { return inode_read_at(file->inode, buffer, size, file_ofs); }
 
-/* Writes SIZE bytes from BUFFER into FILE,
- * starting at the file's current position.
- * Returns the number of bytes actually written,
- * which may be less than SIZE if end of file is reached.
- * (Normally we'd grow the file in that case, but file growth is
- * not yet implemented.)
- * Advances FILE's position by the number of bytes read. */
+/* SIZE 바이트를 BUFFER에서 FILE로 현재 파일 위치에서부터 기록합니다.
+ * 실제로 기록된 바이트 수를 반환하며 파일의 끝에 도달하면 SIZE보다 작을 수 있습니다.
+ * (보통이라면 파일을 확장하지만 파일 확장은 아직 구현되지 않았습니다.)
+ * 파일의 위치를 읽은 바이트 수만큼 앞당깁니다. */
 off_t file_write(struct file *file, const void *buffer, off_t size) {
     off_t bytes_written = inode_write_at(file->inode, buffer, size, file->pos);
     file->pos += bytes_written;
     return bytes_written;
 }
 
-/* Writes SIZE bytes from BUFFER into FILE,
- * starting at offset FILE_OFS in the file.
- * Returns the number of bytes actually written,
- * which may be less than SIZE if end of file is reached.
- * (Normally we'd grow the file in that case, but file growth is
- * not yet implemented.)
- * The file's current position is unaffected. */
-off_t file_write_at(struct file *file, const void *buffer, off_t size, off_t file_ofs) { return inode_write_at(file->inode, buffer, size, file_ofs); }
+/* BUFFER에서 SIZE 바이트를 FILE의 FILE_OFS 오프셋에서 시작하여 파일에 기록합니다.
+ * 실제로 기록된 바이트 수를 반환하며 파일의 끝에 도달하면 SIZE보다 작을 수 있습니다. 
+ * (보통이라면 파일을 확장하지만 파일 확장은 아직 구현되지 않았습니다.)
+ * 파일의 현재 위치는 영향을 받지 않습니다.
+ * file: 기록 대상
+ * buffer: 기록할 데이터가 담긴 버퍼 
+ * size: 기록할 데이터의 크기 
+ * file_ofs: 데이터를 기록할 위치 오프셋 */
+off_t file_write_at(struct file *file, const void *buffer, off_t size, off_t file_ofs) { 
+    return inode_write_at(file->inode, buffer, size, file_ofs);
+}
 
 /* Prevents write operations on FILE's underlying inode
  * until file_allow_write() is called or FILE is closed. */

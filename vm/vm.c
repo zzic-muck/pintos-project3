@@ -130,6 +130,7 @@ spt_insert_page (struct supplemental_page_table *spt, struct page *page) {
 
 void
 spt_remove_page (struct supplemental_page_table *spt, struct page *page) {
+	hash_delete(&spt->hash_table, &page->hash_elem);
 	vm_dealloc_page (page);
 	return true;
 }
@@ -220,20 +221,20 @@ vm_handle_wp (struct page *page UNUSED) {
 bool
 vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 		bool user UNUSED, bool write UNUSED, bool not_present UNUSED) {
+		
 	struct thread *curr = thread_current();
 	struct supplemental_page_table *spt UNUSED = &thread_current()->spt;
 	
 	// 페이지 폴트가 발생한 가상 주소 및 인자들이 유효한지 체크
 	if (!is_user_vaddr(addr))
 		return false;
-	
 	// 스택 증가로 page fault 예외를 처리할 수 있는지 확인 후 vm_stack_growth 호출
 	// rsp가 유효하면 스택그로우 호출
 	if (USER_STACK - (1<<20) <= addr && curr->rsp_stack-8 <= addr && addr <= curr->stack_bottom)
 		vm_stack_growth(addr);
 
 	// 접근한 메모리가 물리 페이지와 매핑 되지 않은 경우
-	if (not_present) {
+	if (not_present) { 
 		struct page *page = spt_find_page(spt, addr);
 		if (!page)
 			return false;
@@ -252,8 +253,6 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 void
 vm_dealloc_page (struct page *page) {
 	destroy (page);
-	if (page->frame)
-		free(page->frame);
 	free (page);
 }
 
@@ -361,12 +360,11 @@ void
 hash_bye (struct hash_elem *e, void *aux) {
 	struct page *page = hash_entry(e, struct page, hash_elem);
 	destroy(page);
-	// free(page);
 }
 
 /* Free the resource hold by the supplemental page table */
 void
-supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
+supplemental_page_table_kill (struct supplemental_page_table *spt) {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
 	hash_clear(&spt->hash_table, hash_bye);

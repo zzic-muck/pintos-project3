@@ -326,15 +326,15 @@ void process_exit(void) {
     //     cnt++;
     // }
 
+    /* 페이지 테이블 메모리 반환 및 pml4 리셋 */
+    palloc_free_page(table);
+    process_cleanup();
+
     /* 부모의 wait() 대기 ; 부모가 wait을 해줘야 죽을 수 있음 (한계) */
     if (curr->parent_is) {
         sema_up(&curr->wait_sema);
         sema_down(&curr->free_sema);
     }
-
-    /* 페이지 테이블 메모리 반환 및 pml4 리셋 */
-    palloc_free_page(table);
-    process_cleanup();
 }
 
 /* 현재 프로세스의 페이지 테이블 매핑을 초기화하고, 커널 페이지 테이블만 남기는 함수 */

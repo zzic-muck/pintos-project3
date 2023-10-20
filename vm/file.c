@@ -53,13 +53,14 @@ file_backed_swap_out (struct page *page) {
  * file_backed_destroy의 호출자가 이를 처리해야 한다. */
 static void
 file_backed_destroy (struct page *page) {
-	struct file_page *file_page UNUSED = &page->file;
+	struct file_page *file_page = &page->file;
+	file_write_at(file_page->file, page->va, file_page->read_bytes, file_page->offset);
 }
 
 static bool lazy_load_file(struct page *page, void *aux_) {
 	ASSERT(page->frame->kva != NULL);
 	// 파일 리드만 할 수 잇게 만드러
-	struct lazy_load_aux *aux = (struct lazy_load_aux *) aux_;
+	struct lazy_load_aux_file *aux = (struct lazy_load_aux_file *) aux_;
 
 	size_t page_read_bytes = aux->read_bytes;
 	size_t page_zero_bytes = aux->zero_bytes;
@@ -71,9 +72,17 @@ static bool lazy_load_file(struct page *page, void *aux_) {
 	file_read_at(aux->file, page->frame->kva, page_read_bytes, aux->ofs);
 
 	memset(page->frame->kva + page_read_bytes, 0, page_zero_bytes);
+	
+	// munmap할 때 디스크에 내용 반영해주기 위해 파일 페이지에 저장
+	page->file.file = aux->file;
+	page->file.offset = aux->ofs;
+	page->file.read_bytes = page_read_bytes;
+	page->file.page_cnt = aux->page_cnt;
+	
 	return true;
 }
 
+// TODO: 오늘까지 맴매 못하면 못잠
 /* Do the mmap
  * 성공적으로 페이지를 생성하면 addr을 반환한다.
  * 파일 타입이 FILE인 UNINIT 페이지를 생성한 후 page-fault가 발생하면
@@ -88,9 +97,10 @@ do_mmap (void *addr, size_t length, int writable, struct file *file, off_t offse
 	
 	// 주소 범위에 파일을 매핑
 	void *origin_addr = addr;	// 초기 주소 저장
-	
+	size_t origin_length = length;	// 초기 사이즈 저장
+
 	while (length > 0) {
-		struct lazy_load_aux *aux = (struct lazy_load_aux *) malloc(sizeof(struct lazy_load_aux));
+		struct lazy_load_aux_file *aux = (struct lazy_load_aux_file *) malloc(sizeof(struct lazy_load_aux_file));
 
 		// 메모리 할당 오류
 		if (!aux)
@@ -101,6 +111,7 @@ do_mmap (void *addr, size_t length, int writable, struct file *file, off_t offse
 		aux->read_bytes = length < PGSIZE ? length : PGSIZE;
 		aux->zero_bytes = PGSIZE - aux->read_bytes;
 		aux->writable = writable;
+		aux->page_cnt = origin_length / PGSIZE;
 		
 		if (!vm_alloc_page_with_initializer(VM_FILE, addr, writable, lazy_load_file, aux)) {
 			free(aux);
@@ -108,14 +119,42 @@ do_mmap (void *addr, size_t length, int writable, struct file *file, off_t offse
 		}
 		length -= aux->read_bytes;
 		addr += PGSIZE;
-		offset += PGSIZE;
+		offset += aux->read_bytes;
 	}
 	return origin_addr;		// 초기 주소 반환
 }
 
 /* Do the munmap 
-*/
+ * 연결된 물리프레임과의 연결을 끊어주는 함수
+ * FILE 타입의 페이지는 file-backed 페이지이기에 디스크에 존재하는 파일과 연결된 페이지이다.
+ * 해당 페이지에 수정사항이 있을 경우 이를 감지하여 변경사항을 디스크의 파일에 써줘야한다. */
 void
 do_munmap (void *addr) {
-	
+	struct thread *curr = thread_current();
+	struct page *page = spt_find_page(&curr->spt, addr);
+	struct file *file = page->file.file;
+	struct file_page *f_page = &page->file;
+
+	int cnt = f_page->page_cnt;
+
+	while (cnt > 0) {
+		// 페이지 변경되어있을 경우 디스크에 존재하는 file에 write해주고 dirty-beat를 다시 0으로 변경
+		page = spt_find_page(&curr->spt, addr);
+		
+		if (!page)
+			return false;
+ 
+		if (pml4_is_dirty(curr->pml4, addr) == 1) {
+			file_write_at(file, addr, f_page->read_bytes, f_page->offset);
+			pml4_set_dirty(curr->pml4, addr, 0);
+		}
+
+		cnt--;
+		pml4_clear_page(curr->pml4, addr);
+		addr += PGSIZE;
+		palloc_free_page(page->frame->kva);
+		hash_delete(&curr->spt.hash_table, &page->hash_elem);
+		free(page);
+	}
+	file_close(file);
 }
