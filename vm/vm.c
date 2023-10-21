@@ -102,11 +102,7 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 		page -> writable = writable; 
 
 		//spt에 page를 넣어준다.
-		if (!spt_insert_page(spt, page)) {
-			return false;
-		}
-
-		return true;
+		return spt_insert_page(spt, page);
 	}
 
 err:
@@ -152,6 +148,7 @@ spt_insert_page (struct supplemental_page_table *spt UNUSED,
 
 void
 spt_remove_page (struct supplemental_page_table *spt, struct page *page) {
+	hash_delete(&spt -> spt_hash, &page -> hash_elem);
 	vm_dealloc_page (page);
 	return true;
 }
@@ -379,26 +376,38 @@ supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
 		struct supplemental_page_table *src UNUSED) {
 	
 	struct hash_iterator i;
-
    	hash_first (&i, &src -> spt_hash);
+
    	while (hash_next (&i)) {
 		struct page *src_page = hash_entry(hash_cur(&i), struct page, hash_elem); 
    		enum vm_type type = src_page -> operations -> type;
 		void *upage = src_page -> va;
 		bool writable = src_page -> writable;
-		// type == uninit 이라면 복사하는 페이지도 uninit
+		//1.  type == uninit 
 		if (type == VM_UNINIT) {
 			vm_initializer *init = src_page -> uninit.init;
 			void *aux = src_page -> uninit.aux;
 			vm_alloc_page_with_initializer (VM_ANON, upage, writable, init, aux);
 			continue;
 		}
-		//uninit이 아니라면
-		if (!vm_alloc_page(type, upage, writable)) {
-			// init이랑 aux는 Lazy Loading에 필요함
-            // 지금 만드는 페이지는 기다리지 않고 바로 내용을 넣어줄 것이므로 필요 없음
-			return false;
+		//2. type == file_backed
+		if (type == VM_FILE) {
+			struct lazy_load_aux *file_aux = malloc(sizeof(struct lazy_load_aux));
+			file_aux->file = src_page->file.file;
+			file_aux->ofs = src_page->file.ofs;
+			file_aux->read_bytes = src_page->file.read_bytes;
+			if (!vm_alloc_page_with_initializer(type, upage, writable, NULL, file_aux))
+				return false;
+			struct page *file_page = spt_find_page(dst, upage);
+			file_backed_initializer(file_page, type, NULL);
+			pml4_set_page(thread_current()->pml4, file_page->va, src_page->frame->kva, src_page->writable);
+			continue;
 		}
+		//3. type == anon
+		if (!vm_alloc_page(type, upage, writable)) // uninit page 생성 & 초기화
+			return false;						   // init이랑 aux는 Lazy Loading에 필요. 지금 만드는 페이지는 기다리지 않고 바로 내용을 넣어줄 것이므로 필요 없음
+
+
 		//vm_claim_page로 요청한 후 매핑 + 페이지 타입에 맞게 초기화
 		if (!vm_claim_page(upage)) {
 			return false;

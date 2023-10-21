@@ -41,6 +41,7 @@ void close(int fd);
 
 void *mmap (void *addr, size_t length, int writable, int fd, off_t offset);
 void munmap (void *addr);
+
 /* File Descriptor 관련 함수 Prototype & Global Variables */
 int allocate_fd(struct file *file);
 struct file *get_file_from_fd(int fd);
@@ -162,9 +163,9 @@ void syscall_handler(struct intr_frame *f) {
         munmap(f->R.rdi);
         break;
 
-    default:
-        printf("Unknown system call: %d\n", syscall_num); // deprecated by placeholder, but kept in place
-        thread_exit();
+    // default:
+    //     printf("Unknown system call: %d\n", syscall_num); // deprecated by placeholder, but kept in place
+    //     thread_exit();
     }
 
     return;
@@ -547,7 +548,7 @@ void *mmap (void *addr, size_t length, int writable, int fd, off_t offset) {
     }
     //해당 fd를 통해 가져온 struct file이 유효한지 확인
     struct file *file= get_file_from_fd(fd); 
-    if (file == NULL) {
+    if (file == NULL || file_length(file) == 0) {
         return NULL;
     }
 

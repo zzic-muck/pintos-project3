@@ -765,33 +765,33 @@ static bool install_page(void *upage, void *kpage, bool writable) {
  * If you want to implement the function for only project 2, implement it on the
  * upper block. */
 
-static bool lazy_load_segment(struct page *page, void *aux) {
+bool lazy_load_segment(struct page *page, void *aux) {
     /* TODO: Load the segment from the file */
     /* TODO: This called when the first page fault occurs on address VA. */
     /* TODO: VA is available when calling this function. */
     ASSERT(page -> frame -> kva != NULL);
-
+    struct file_page *file_page UNUSED = &page->file;
     struct lazy_load_aux *aux_ = (struct lazy_load_aux *)aux;
-
+    size_t page_read_bytes = aux_->read_bytes;
+    size_t page_zero_bytes = aux_->zero_bytes;
+   
     file_seek(aux_ -> file, aux_ -> ofs);
 
     // printf("file: %p, ofs: %d, read_bytes: %d\n", file, ofs, read_bytes);
-    // while (read_bytes > 0 || zero_bytes > 0) {
+    // while (page_read_bytes > 0 || page_zero_bytes > 0) {
         /* Do calculate how to fill this page.
          * We will read PAGE_READ_BYTES bytes from FILE
          * and zero the final PAGE_ZERO_BYTES bytes. */
 
-        size_t page_read_bytes = aux_->read_bytes;
-        size_t page_zero_bytes = aux_->zero_bytes;
 
         /* Get a page of memory. */
-        if (page == NULL) {
+        if (!page || !page->frame) {
             return false;
         }
 
         /* Load this page. */
-        if (file_read(aux_-> file, page -> frame -> kva, page_read_bytes) != (int)page_read_bytes) {
-            palloc_free_page(page->frame->kva);
+        if (file_read_at(aux_-> file, page -> frame -> kva, page_read_bytes, aux_->ofs) != (int)page_read_bytes) {
+            free(aux_);
             return false;
         }
 
@@ -843,6 +843,7 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t 
         //printf("load segment; file: %p, ofs: %d, read_bytes: %d\n", file, ofs, page_read_bytes);
         //vm_alloc_page_with_initializer의 4번째 인자가 load할 때 이용할 함수, 5번쨰 인자가 그 때 필요한 인자이다.
         if (!vm_alloc_page_with_initializer(VM_ANON, upage, writable, lazy_load_segment, aux))
+            
             return false;
 
         /* Advance. */
