@@ -64,11 +64,13 @@ struct semaphore filesys_sema; // 파일시스템 동기화를 위한 세마포�
 #define MSR_STAR 0xc0000081         /* Segment selector msr */
 #define MSR_LSTAR 0xc0000082        /* Long mode SYSCALL target */
 #define MSR_SYSCALL_MASK 0xc0000084 /* Mask for the eflags */
+struct semaphore syscalsema;
 
 void syscall_init(void) {
     write_msr(MSR_STAR, ((uint64_t)SEL_UCSEG - 0x10) << 48 | ((uint64_t)SEL_KCSEG) << 32);
     write_msr(MSR_LSTAR, (uint64_t)syscall_entry);
     sema_init(&filesys_sema, 1);
+    sema_init(&syscalsema, 1);
     /* The interrupt service rountine should not serve any interrupts
      * until the syscall_entry swaps the userland stack to the kernel
      * mode stack. Therefore, we masked the FLAG_FL. */
@@ -88,13 +90,15 @@ void syscall_handler(struct intr_frame *f) {
     // 커널-사이드에서 실행된 결과물을 %rax에 넣어서 반환해야 함
 
     int syscall_num = f->R.rax;
-
+    // sema_down(&syscalsema);
     switch (syscall_num) {
 
     case SYS_HALT:
+        // sema_up(&syscalsema);
         halt();
 
     case SYS_EXIT:
+        // sema_up(&syscalsema);
         exit(f->R.rdi);
         break;
 
@@ -103,10 +107,12 @@ void syscall_handler(struct intr_frame *f) {
         break;
 
     case SYS_EXEC:
+        // sema_up(&syscalsema);
         f->R.rax = exec(f->R.rdi);
         break;
 
     case SYS_WAIT:
+        // sema_up(&syscalsema);
         f->R.rax = wait(f->R.rdi);
         break;
 
@@ -156,6 +162,7 @@ void syscall_handler(struct intr_frame *f) {
         printf("Unknown system call: %d\n", syscall_num); // deprecated by placeholder, but kept in place
         thread_exit();
     }
+    // sema_up(&syscalsema);
 
     return;
 }

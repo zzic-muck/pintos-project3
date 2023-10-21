@@ -44,7 +44,6 @@ anon_initializer (struct page *page, enum vm_type type, void *kva) {
 static bool
 anon_swap_in (struct page *page, void *kva) {
 	struct anon_page *anon_page = &page->anon;
-
 	disk_sector_t sector = page->anon.sector;
 
 	for(int i = 0; i < 8; i++){
@@ -52,7 +51,7 @@ anon_swap_in (struct page *page, void *kva) {
 	}
 
 	bitmap_set_multiple(swap_bitmap, sector, 8, false);
-	sector = 0;
+	page->anon.sector = 0;
 	pml4_set_page(thread_current()->pml4, page->va, kva, page->writable);
 
 	return true;

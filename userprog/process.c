@@ -312,7 +312,6 @@ int process_wait(tid_t child_tid) {
 
 /* thread_exit에서 호출되는 함수로, 프로세스를 종료시킴. */
 void process_exit(void) {
-
     struct thread *curr = thread_current();
     struct file **table = curr->fd_table;
     /* Debug */

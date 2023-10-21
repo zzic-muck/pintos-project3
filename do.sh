@@ -147,4 +147,4 @@ make -j
 cd build
 source ../../activate
 
-$SWAP_FILE
+$PAGE_MERGE_SEQ
