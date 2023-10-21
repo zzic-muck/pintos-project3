@@ -8,6 +8,7 @@
 #include "filesys/file.h"
 #include "filesys/filesys.h"
 #include "threads/mmu.h"
+#include <string.h>
 #include <stdio.h>
 
 struct list frame_table; //프레임 테이블 전역변수
@@ -216,7 +217,11 @@ vm_get_frame (void) {
 
 	if(frame->kva == NULL || frame == NULL)
 	{
-		PANIC("palloc_get_page failed");
+		if(frame != NULL)
+			free(frame);
+		
+		frame = vm_evict_frame();
+		memset(frame->kva, 0, PGSIZE);
 		//희생자 로직 필요
 	}
 		
@@ -313,11 +318,12 @@ vm_do_claim_page (struct page *page) {
 	page->frame = frame;
 	//frame 과 page를 연결해준다
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
-	
 	// page가 어떤 kva(물리주소) 와 연결되어있는지 확인
 	// 없으면 va를 kva와 연결해준다
 	// pml4_set_page를 써봄
+
 	pml4_set_page (t -> pml4, page -> va, frame->kva, page->writable);
+	
 	return swap_in (page, frame->kva);
 }
 
@@ -339,7 +345,7 @@ supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
 		struct supplemental_page_table *src UNUSED) {
 	
 	struct hash_iterator i;
-
+	
    	hash_first (&i, &src -> spt_page);
    	while (hash_next (&i)) {
 		struct page *src_page = hash_entry(hash_cur(&i), struct page, hash_elem); 
@@ -376,7 +382,6 @@ supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
 		}
 		
   	}
-	
 	return true;
 }
 
@@ -390,9 +395,10 @@ void hash_page_destroy (struct hash_elem *e, void *aux) {
 			file_seek(page->file.file, 0);
 			file_write(page->file.file, page->frame->kva, page->file.page_read_bytes);
 		}
-
 	}
+
 	hash_delete(&thread_current()->spt, &page->hash_elem);
+	pml4_clear_page(thread_current()->pml4, page->va);
 	destroy(page);
 	free(page);
 }
@@ -403,7 +409,6 @@ supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
 	
-	// printf(" 킬 킬 킬 킬\n");
 	hash_clear(&spt->spt_page, hash_page_destroy);
 
 	

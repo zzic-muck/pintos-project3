@@ -19,9 +19,12 @@ static const struct page_operations file_ops = {
 	.type = VM_FILE,
 };
 
+struct lock file_lock;
+
 /* The initializer of file vm */
 void
 vm_file_init (void) {
+	lock_init(&file_lock);
 }
 
 /* Initialize the file backed page */
@@ -37,12 +40,19 @@ file_backed_initializer (struct page *page, enum vm_type type, void *kva) {
 static bool
 file_backed_swap_in (struct page *page, void *kva) {
 	struct file_page *file_page UNUSED = &page->file;
+
+	return true;
+
 }
 
 /* Swap out the page by writeback contents to the file. */
 static bool
 file_backed_swap_out (struct page *page) {
 	struct file_page *file_page UNUSED = &page->file;
+	int cnt = file_page->tolength / PGSIZE;
+	void *addr = page->addr;
+
+	return true;
 }
 
 /* Destory the file backed page. PAGE will be freed by the caller. */
@@ -51,8 +61,6 @@ file_backed_destroy (struct page *page) {
 	struct file_page *file_page UNUSED = &page->file;
 
 	file_page->file = NULL;
-	
-	
 
 }
 
@@ -61,14 +69,15 @@ bool lazy_do_mmap(struct page *page, void *aux){
 	struct file *file = lazy_mmap->file;
 	off_t offset = lazy_mmap->offset;
 	size_t page_read_bytes = lazy_mmap->page_read_bytes;
+	
 	file_seek(file, offset);
-	/* Load this page. */
 	file_read(file, page->frame->kva, page_read_bytes);
 	
 	page->file.file = file;
 	page->file.page_read_bytes = page_read_bytes;
 	page->file.offset = offset;
 	page->file.tolength = lazy_mmap->tolegnth;
+	page->addr = lazy_mmap->addr;
 	free(lazy_mmap);
 	return true;
 }
@@ -102,29 +111,18 @@ do_mmap (void *addr, size_t length, int writable,
 		addr += PGSIZE;
 	}
 
-	// addr = pg_round_down(addr);
-	// vm_claim_page(addr);
-	// struct page *page = spt_find_page(&thread_current()->spt, addr);
-	// page->operations = &file_ops;
-
-	// page->file.file = m_file;
-	// page->file.page_read_bytes = length;
-	// file_read(m_file, addr, length);
-
-
 	return old_addr;
 }
 
 /* Do the munmap */
 void 
 do_munmap (void *addr) {
-	int cnt = 0;
-
+	int cnt;
 
 	addr = pg_round_down(addr);
 	struct page *page = spt_find_page(&thread_current()->spt, addr);
 	cnt = page->file.tolength / PGSIZE;
-	// printf("cnt : %d\n", cnt);
+
 	while(cnt > 0){
 	page = spt_find_page(&thread_current()->spt, addr);
 
@@ -139,6 +137,8 @@ do_munmap (void *addr) {
 	else{
 		file_seek(page->file.file, page->file.offset);
 		file_write(page->file.file ,page->frame->kva, page->file.page_read_bytes);
+		pml4_set_dirty(thread_current()->pml4, addr, false);
+
 		pml4_clear_page(thread_current()->pml4, addr);
 		palloc_free_page(page->frame->kva);
 		hash_delete(&thread_current()->spt, &page->hash_elem);

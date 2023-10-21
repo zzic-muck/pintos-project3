@@ -320,7 +320,7 @@ void process_exit(void) {
         printf("%s\n", curr->name);
     }
     /* 열린 파일 전부 닫기*/
-    fd_table_close();
+    // fd_table_close();
     int cnt = 2;
     while (cnt < 256) {
         if (table[cnt]) {
@@ -330,13 +330,14 @@ void process_exit(void) {
         cnt++;
     }
 
-    // if(curr->exec_file){
-    //     file_close(curr->exec_file);
-    // }
+    if(curr->exec_file){
+        file_close(curr->exec_file);
+    }
 
 
     /* 페이지 테이블 메모리 반환 및 pml4 리셋 */
     
+    palloc_free_page(table);
     process_cleanup();
     
     if (curr->parent_is) {
@@ -345,7 +346,6 @@ void process_exit(void) {
     }
        
 
-    palloc_free_page(table);
 
 }
 

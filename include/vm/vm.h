@@ -2,6 +2,7 @@
 #define VM_VM_H
 #include <stdbool.h>
 #include "threads/palloc.h"
+#include "devices/disk.h"
 struct data{
 
 
@@ -68,7 +69,7 @@ struct page {
 	struct hash_elem hash_elem;
 	bool writable;
 	void *addr;
-
+	
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */
 	union {

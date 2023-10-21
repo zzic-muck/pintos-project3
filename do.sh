@@ -147,4 +147,4 @@ make -j
 cd build
 source ../../activate
 
-$MMAP_UNMAP
+$SWAP_FILE
