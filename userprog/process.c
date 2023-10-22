@@ -319,15 +319,15 @@ void process_exit(void) {
         printf("%s\n", curr->name);
     }
     /* 열린 파일 전부 닫기*/
-    // fd_table_close();
-    int cnt = 2;
-    while (cnt < 256) {
-        if (table[cnt]) {
-            file_close(table[cnt]);
-            table[cnt] = NULL;
-        }
-        cnt++;
-    }
+    fd_table_close();
+    // int cnt = 2;
+    // while (cnt < 256) {
+    //     if (table[cnt]) {
+    //         file_close(table[cnt]);
+    //         table[cnt] = NULL;
+    //     }
+    //     cnt++;
+    // }
 
     if(curr->exec_file){
         file_close(curr->exec_file);
@@ -365,7 +365,6 @@ static void process_cleanup(void) {
     /* Virtual Memory 공간은 프로세스 고유의 공간과, 모두가 같은 매핑 정보를 갖는 커널-사이드 공간으로 나뉨.
        다음 과정을 통해서 현재 프로세스의 pml4를 삭제하고 Kernel 정보만 남아있는 상태로 전환함 (User-side만 비우는 작업). */
     if (pml4 != NULL) {
-
         // plm4가 이미 NULL이라면 pml4가 없거나 이미 삭제되었기 때문에 별도의 작업이 필요 없음
         curr->pml4 = NULL;   // 현재 프로세스 (스레드)의 pml4 (User-side Mapping)를 NULL로 바꾸고,
         pml4_activate(NULL); // NULL 값으로 CPU의 Active pml4를 비우는 작업 (Kernel-side는 별도로 그대로 유지됨)
@@ -786,14 +785,7 @@ static bool lazy_load_segment(struct page *page, void *aux) {
     uint32_t read_bytes = aux_->read_bytes;
     uint32_t zero_bytes = aux_->zero_bytes;
 
-    // printf("lazy_load_segment\n");
     file_seek(file, ofs);
-
-    // printf("file: %p, ofs: %d, read_bytes: %d\n", file, ofs, read_bytes);
-    // while (read_bytes > 0 || zero_bytes > 0) {
-        /* Do calculate how to fill this page.
-         * We will read PAGE_READ_BYTES bytes from FILE
-         * and zero the final PAGE_ZERO_BYTES bytes. */
 
         size_t page_read_bytes = read_bytes;
         size_t page_zero_bytes = zero_bytes;
@@ -807,25 +799,7 @@ static bool lazy_load_segment(struct page *page, void *aux) {
 
         /* Load this page. */
         file_read(file, page->frame->kva, read_bytes);
-        // if (file_read(file, page->frame->kva, read_bytes) != (int)read_bytes) {
-        //     // printf("file_read fail\n");
-        //     vm_dealloc_page(page);
-        //     return false;
-        // }
 
-        /* Add the page to the process's address space. */
-        // if (!vm_claim_page(page->va)) {
-        //     vm_dealloc_page(page);
-        //     return false;
-        // }
-
-        // /* Advance. */
-        // read_bytes -= page_read_bytes;
-        // zero_bytes -= page_zero_bytes;
-        // page += PGSIZE;
-        // ofs += PGSIZE;
-
-    // }
     free(aux_);
     return true;
 }

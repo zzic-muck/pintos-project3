@@ -344,7 +344,6 @@ bool remove(const char *file) {
    같은 파일이 각각 다른 fd 값을 갖는 만큼 각각 별도로 시스템콜을 통해서 닫아줘야 함.
    이 fd들은 파일 내 위치 포인터를 공유하지 않음. */
 int open(const char *file) {
-
     if (!pointer_validity_check(file)) {
         exit(-1);
     }

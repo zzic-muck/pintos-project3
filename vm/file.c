@@ -24,7 +24,7 @@ struct lock file_lock;
 /* The initializer of file vm */
 void vm_file_init(void)
 {
-	lock_init(&file_lock);
+// 	lock_init(&file_lock);
 }
 
 /* Initialize the file backed page */
@@ -41,8 +41,14 @@ static bool
 file_backed_swap_in(struct page *page, void *kva)
 {
 	struct file_page *file_page UNUSED = &page->file;
+// 	// // printf("??????????????????????????????????\n");
+	file_seek(file_page->file, file_page->offset);
+	file_read(file_page->file, page->frame->kva, file_page->page_read_bytes);
+	pml4_set_dirty(thread_current()->pml4, page->va, false);
+	pml4_set_page(thread_current()->pml4, page->va, kva, page->writable);
 
-	return true;
+
+// 	return true;
 }
 
 /* Swap out the page by writeback contents to the file. */
@@ -52,8 +58,8 @@ file_backed_swap_out(struct page *page)
 	struct file_page *file_page UNUSED = &page->file;
 	// int cnt = file_page->tolength / PGSIZE;
 	void *addr = page->addr;
-
-
+	// printf("addr value   %p va %p\n", addr, page->va);
+	
 	if (pml4_is_dirty(thread_current()->pml4, addr))
 	{
 		file_seek(file_page->file, file_page->offset);
@@ -62,6 +68,7 @@ file_backed_swap_out(struct page *page)
 	}
 
 	pml4_clear_page(thread_current()->pml4, page->va);
+	
 	page->frame = NULL;
 
 	return true;
@@ -73,8 +80,14 @@ file_backed_destroy(struct page *page)
 {
 	struct file_page *file_page UNUSED = &page->file;
 
-	file_page->file = NULL;
-}
+	if (page->file.file != NULL && pml4_is_dirty(thread_current()->pml4, page->va))
+	{
+		file_seek(page->file.file, 0);
+		file_write(page->file.file, page->frame->kva, page->file.page_read_bytes);
+	}
+	hash_delete(&thread_current()->spt, &page->hash_elem);
+	pml4_clear_page(thread_current()->pml4, page->va);
+}		
 
 bool lazy_do_mmap(struct page *page, void *aux)
 {
@@ -136,7 +149,7 @@ void do_munmap(void *addr)
 
 	addr = pg_round_down(addr);
 	struct page *page = spt_find_page(&thread_current()->spt, addr);
-	cnt = page->file.tolength / PGSIZE;
+	cnt = (long)page->file.tolength / PGSIZE;
 
 	while (cnt > 0)
 	{
@@ -151,15 +164,14 @@ void do_munmap(void *addr)
 				pml4_set_dirty(thread_current()->pml4, addr, false);
 			}
 			
-			pml4_clear_page(thread_current()->pml4, addr);
+			pml4_clear_page(thread_current()->pml4, page->va);
 			palloc_free_page(page->frame->kva);
 		}
-
-		
 		hash_delete(&thread_current()->spt, &page->hash_elem);
 		free(page);
 
 		cnt--;
 		addr += PGSIZE;
 	}
+	
 }

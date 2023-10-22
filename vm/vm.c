@@ -192,7 +192,6 @@ vm_get_victim(void)
 	victim = list_entry(list_pop_front(&frame_table), struct frame, frame_elem);
 
 	// 클락으로도 할 수 잇슴
-	printf("victim : %p\n", victim);
 	return victim;
 }
 
@@ -225,16 +224,19 @@ vm_get_frame(void)
 	frame = (struct frame *)malloc(sizeof(struct frame));
 	frame->kva = palloc_get_page(PAL_USER | PAL_ZERO); // 팔록으로 일단은
 
+	// printf("@@@@@@@frame->kva : %p     frame  %p @@@@@@@@\n", frame->kva, frame);
+
 	if (frame->kva == NULL || frame == NULL)
 	{
+		// ASSERT( 1 == 2 );
 		if (frame != NULL)
 			free(frame);
 
 		frame = vm_evict_frame();
 		memset(frame->kva, 0, PGSIZE);
-		// 희생자 로직 필요
+	
 	}
-
+	
 	list_push_back(&frame_table, &frame->frame_elem); // 프레임을 프레임테이블에 넣어준다
 	frame->page = NULL;
 
@@ -247,7 +249,7 @@ vm_get_frame(void)
 static void
 vm_stack_growth(void *addr UNUSED)
 {
-	vm_alloc_page(VM_ANON, addr, true);
+	vm_claim_page(addr);
 }
 
 /* Handle the fault on write_protected page */
@@ -311,13 +313,16 @@ bool vm_claim_page(void *va UNUSED)
 
 	// 혹시 alloc 실패하면 여기서 뭔가 do claim 하기전에 하지 않을까??
 
-	// vm_alloc_page(VM_ANON, va, false);
 	va = pg_round_down(va);
-	vm_alloc_page(VM_ANON, va, true);
 
+	// vm_alloc_page(VM_ANON, va, true);
 	page = spt_find_page(&thread_current()->spt, va);
-	if (page == NULL)
-		return false;
+
+	if (page == NULL){
+		vm_alloc_page(VM_ANON, va, true);
+		page = spt_find_page(&thread_current()->spt, va);
+
+	}
 
 	return vm_do_claim_page(page);
 }
@@ -374,24 +379,24 @@ bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED,
 			// vm_initializer *init = src_page ->uninit.init;
 			// void *aux = src_page -> uninit.aux;
 			if (!vm_alloc_page_with_initializer(VM_ANON, upage, writable, init, aux))
+
 				return false;
 			// continue;
 		}
 		else
 		{
 			// uninit이 아니라면
-			if (!vm_alloc_page(type, upage, writable))
-			{
-				// init이랑 aux는 Lazy Loading에 필요함
-				// 지금 만드는 페이지는 기다리지 않고 바로 내용을 넣어줄 것이므로 필요 없음
-				return false;
-			}
+			// if (!vm_alloc_page(type, upage, writable))
+			// {
+			// 	// init이랑 aux는 Lazy Loading에 필요함
+			// 	// 지금 만드는 페이지는 기다리지 않고 바로 내용을 넣어줄 것이므로 필요 없음
+			// 	return false;
+			// }
 			// vm_claim_page로 요청한 후 매핑 + 페이지 타입에 맞게 초기화
 			if (!vm_claim_page(upage))
 			{
 				return false;
 			}
-
 			struct page *dst_page = spt_find_page(dst, upage);
 			memcpy(dst_page->frame->kva, src_page->frame->kva, PGSIZE);
 		}
@@ -403,19 +408,7 @@ void hash_page_destroy(struct hash_elem *e, void *aux)
 {
 	struct page *page = hash_entry(e, struct page, hash_elem);
 
-	if (page_get_type(page) == VM_FILE)
-	{
-		if (page->file.file != NULL && pml4_is_dirty(thread_current()->pml4, page->va))
-		{
-			file_seek(page->file.file, 0);
-			file_write(page->file.file, page->frame->kva, page->file.page_read_bytes);
-		}
-	}
-
-	hash_delete(&thread_current()->spt, &page->hash_elem);
-	pml4_clear_page(thread_current()->pml4, page->va);
-	destroy(page);
-	free(page);
+	vm_dealloc_page(page);
 }
 
 /* Free the resource hold by the supplemental page table */

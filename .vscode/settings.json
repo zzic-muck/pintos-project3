@@ -64,6 +64,7 @@
         "mmu.h": "c",
         "string.h": "c",
         "flags.h": "c",
-        "bitmap.h": "c"
+        "bitmap.h": "c",
+        "disk.h": "c"
     }
 }
