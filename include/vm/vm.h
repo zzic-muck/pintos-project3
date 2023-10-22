@@ -81,6 +81,13 @@ struct frame {
 
 };
 
+struct slot
+{
+	struct page *page;
+	uint32_t slot_no;
+	struct list_elem swap_elem;
+};
+
 /* The function table for page operations.
  * This is one way of implementing "interface" in C.
  * Put the table of "method" into the struct's member, and
@@ -138,5 +145,10 @@ bool vm_alloc_page_with_initializer (enum vm_type type, void *upage,
 void vm_dealloc_page (struct page *page);
 bool vm_claim_page (void *va);
 enum vm_type page_get_type (struct page *page);
+
+// struct list swap_table;
+// struct list frame_table;
+// struct lock swap_table_lock;
+// struct lock frame_table_lock;
 
 #endif  /* VM_VM_H */

@@ -241,6 +241,10 @@ int process_exec(void *f_name) {
     /* 현재 프로세스의 User-side Virtual Memory pml4를 NULL로 처리한 뒤 페이지 테이블 전용 레지스터를 0으로 초기화 (사용 준비) */
     process_cleanup();
 
+    #ifdef VM
+        supplemental_page_table_init(&thread_current()->spt);
+    #endif
+
     /* 임시로 저장한 intr_frame을 활용해서 파일을 디스크에서 실제로 로딩, 실패시 -1 반환으로 방어.
        load() 함수에서 _if의 값들을 마저 채우고 현재 스레드로 적용함. */
 
@@ -315,7 +319,7 @@ void process_exit(void) {
     /* 열린 파일 전부 닫기*/
     fd_table_close();
     // int cnt = 2;
-    // while (cnt < 256) {
+    // while (cnt < 128) {
     //     if (table[cnt]) {
     //         file_close(table[cnt]);
     //         table[cnt] = NULL;
@@ -323,19 +327,24 @@ void process_exit(void) {
     //     cnt++;
     // }
 
-    if (curr -> exec_file) {
-        file_close(curr->exec_file);
-    }
+    
+    
+    // if (curr -> exec_file) {
+    //     file_close(curr->exec_file);
+    // }
+    palloc_free_page(table);
+    // process_cleanup();
 
     /* 부모의 wait() 대기 ; 부모가 wait을 해줘야 죽을 수 있음 (한계) */
     if (curr->parent_is) {
         sema_up(&curr->wait_sema);
+        process_cleanup();
         sema_down(&curr->free_sema);
     }
 
     /* 페이지 테이블 메모리 반환 및 pml4 리셋 */
-    palloc_free_page(table);
-    process_cleanup();
+    // palloc_free_page(table);
+    // process_cleanup();
 }
 
 /* 현재 프로세스의 페이지 테이블 매핑을 초기화하고, 커널 페이지 테이블만 남기는 함수 */
@@ -775,9 +784,7 @@ bool lazy_load_segment(struct page *page, void *aux) {
     size_t page_read_bytes = aux_->read_bytes;
     size_t page_zero_bytes = aux_->zero_bytes;
    
-    file_seek(aux_ -> file, aux_ -> ofs);
-
-    // printf("file: %p, ofs: %d, read_bytes: %d\n", file, ofs, read_bytes);
+   
     // while (page_read_bytes > 0 || page_zero_bytes > 0) {
         /* Do calculate how to fill this page.
          * We will read PAGE_READ_BYTES bytes from FILE
@@ -843,7 +850,7 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t 
         //printf("load segment; file: %p, ofs: %d, read_bytes: %d\n", file, ofs, page_read_bytes);
         //vm_alloc_page_with_initializer의 4번째 인자가 load할 때 이용할 함수, 5번쨰 인자가 그 때 필요한 인자이다.
         if (!vm_alloc_page_with_initializer(VM_ANON, upage, writable, lazy_load_segment, aux))
-            
+            // free(aux);
             return false;
 
         /* Advance. */
@@ -866,7 +873,7 @@ static bool setup_stack(struct intr_frame *if_) {
      * TODO: You should mark the page is stack. */
     /* TODO: Your code goes here */
 
-    if (vm_alloc_page(VM_ANON|VM_MARKER_0, stack_bottom, 1)) {
+    if (vm_alloc_page(VM_ANON, stack_bottom, true)) {
 
         if(vm_claim_page(stack_bottom)){
             if_->rsp = USER_STACK;

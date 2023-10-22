@@ -260,10 +260,10 @@ static void
 vm_stack_growth (void *addr UNUSED) {
 	//stack 크기를 증가시키기 위해서 anon page를 하나 이상 할당하여 주어진 주소가 더이상 예외주소가 되지 않도록 해야함
 	//할당할 때 addr을 PGSIZE로 내림하여 처리
-	vm_alloc_page(VM_ANON|VM_MARKER_0, pg_round_down(addr),1);
-	// if (vm_alloc_page(VM_ANON|VM_MARKER_0, pg_round_down(addr),1)) {
-	// 	// thread_current () -> stack_bottom -= PGSIZE;
-	// }
+	addr = pg_round_down(addr);
+	if (vm_alloc_page(VM_ANON|VM_MARKER_0, addr, true)) {
+		thread_current () -> stack_bottom -= PGSIZE;
+	}
 }
 
 /* Handle the fault on write_protected page */
@@ -286,6 +286,10 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	if (is_kernel_vaddr(addr)) {
 		return false;
 	}
+
+	if (USER_STACK - (1 << 20) <= addr && thread_current() -> rsp - 8 <= addr && addr <= thread_current() -> stack_bottom) {
+		vm_stack_growth(addr);
+	} 
 
 	//접근한 메모리의 physical page가 존재하지 않는 경우
 	if (not_present) {

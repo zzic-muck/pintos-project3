@@ -530,7 +530,7 @@ void *mmap (void *addr, size_t length, int writable, int fd, off_t offset) {
     }
 
     //addr이 커널영역인지 유저영역인지 확인
-    if (is_kernel_vaddr(addr) || is_kernel_vaddr(addr + length)) {
+    if (is_kernel_vaddr(addr) || is_kernel_vaddr((int)addr + length)) {
         return NULL;
     }
 
