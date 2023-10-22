@@ -62,6 +62,10 @@
         "stdio.h": "c",
         "tests.h": "c",
         "exception.h": "c",
-        "main.h": "c"
+        "main.h": "c",
+        "vm.h": "c",
+        "stdbool.h": "c",
+        "malloc.h": "c",
+        "mmu.h": "c"
     }
 }

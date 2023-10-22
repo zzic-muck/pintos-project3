@@ -9,6 +9,7 @@
 #include "threads/synch.h"
 #include "threads/thread.h"
 #include "userprog/gdt.h"
+#include "vm/vm.h"
 #include "userprog/process.h" // 관련 파일 헤더들 전부 연결
 
 #include <stdio.h>
@@ -37,6 +38,9 @@ int write(int fd, const void *buffer, unsigned size);
 void seek(int fd, unsigned position);
 unsigned tell(int fd);
 void close(int fd);
+
+void *mmap (void *addr, size_t length, int writable, int fd, off_t offset);
+void munmap (void *addr);
 
 /* File Descriptor 관련 함수 Prototype & Global Variables */
 int allocate_fd(struct file *file);
@@ -72,6 +76,7 @@ void syscall_init(void) {
      * until the syscall_entry swaps the userland stack to the kernel
      * mode stack. Therefore, we masked the FLAG_FL. */
     write_msr(MSR_SYSCALL_MASK, FLAG_IF | FLAG_TF | FLAG_DF | FLAG_IOPL | FLAG_AC | FLAG_NT);
+    // lock_init(&filesys_lock);
 }
 
 /* System Call Interface 역할을 하는 함수. */
@@ -96,6 +101,7 @@ void syscall_handler(struct intr_frame *f) {
 
     case SYS_HALT:
         halt();
+        break;
 
     case SYS_EXIT:
         exit(f->R.rdi);
@@ -149,9 +155,17 @@ void syscall_handler(struct intr_frame *f) {
         close(f->R.rdi);
         break;
 
-    default:
-        printf("Unknown system call: %d\n", syscall_num); // deprecated by placeholder, but kept in place
-        thread_exit();
+    case SYS_MMAP:
+        f -> R.rax = mmap(f->R.rdi, f->R.rsi, f->R.rdx, f->R.r10, f->R.r8);
+        break;
+
+    case SYS_MUNMAP:
+        munmap(f->R.rdi);
+        break;
+
+    // default:
+    //     printf("Unknown system call: %d\n", syscall_num); // deprecated by placeholder, but kept in place
+    //     thread_exit();
     }
 
     return;
@@ -393,8 +407,11 @@ int filesize(int fd) {
    fd 0은 input_getc()를 통해서 키보드 입력값을 읽어옴. */
 int read(int fd, void *buffer, unsigned size) {
 
-    if (!buffer_validity_check(buffer, size)) {
+    if (spt_find_page(&thread_current()->spt, buffer)->writable == 0) {
+        exit(-1);
+    }
 
+    if (!buffer_validity_check(buffer, size)) {
         exit(-1);
     }
     /* 읽어온 바이트 수를 기록할 변수 초기화 */
@@ -414,10 +431,10 @@ int read(int fd, void *buffer, unsigned size) {
     if (!file) {
         return -1; // exit(-1)을 하려다가, 공식 문서에 적힌대로 우선 -1로 바꾼 상태
     }
-
-    if (buffer <= 0x400000) {
-        exit(-1);
-    }
+  
+    // if (buffer <= 0x400000) {
+    //     exit(-1);
+    // }
     
     read_count = file_read(file, buffer, size); // file_read는 size를 (off_t*) 형태로 바라는 것 같은데, 에러가 떠서 일단 일반 사이즈로 넣음
 
@@ -499,6 +516,47 @@ void close(int fd) {
         close_file(fd);
         lock_release(&t->fd_lock);
     }
+}
+
+void *mmap (void *addr, size_t length, int writable, int fd, off_t offset) {
+    //offset이 정렬되어있는가 검사
+    if (offset % PGSIZE != 0) {
+        return NULL;
+    }
+
+    //addr이 정렬되어있지 않거나 NULL인가 검사
+    if (addr != pg_round_down(addr) || addr == NULL) {
+        return NULL;
+    }
+
+    //addr이 커널영역인지 유저영역인지 확인
+    if (is_kernel_vaddr(addr) || is_kernel_vaddr((int)addr + length)) {
+        return NULL;
+    }
+
+    //파일의 길이가 0보다 큰지 검사
+    if (length <= 0) {
+        return NULL;
+    }
+    //spt-find를 통해 현재 페이지가 유효한 페이지인지 확인
+    if (spt_find_page(&thread_current () -> spt, addr)) {
+        return NULL;
+    }
+    //fd가 표준 입력 또는 표준 출력인지 확인 
+    if (fd == 0 || fd == 1) {
+        return NULL;
+    }
+    //해당 fd를 통해 가져온 struct file이 유효한지 확인
+    struct file *file= get_file_from_fd(fd); 
+    if (file == NULL || file_length(file) == 0) {
+        return NULL;
+    }
+
+    return do_mmap(addr, length, writable, file, offset);
+}
+
+void munmap (void *addr) {
+    return do_munmap(addr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
