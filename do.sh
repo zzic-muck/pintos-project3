@@ -147,7 +147,7 @@ make
 cd build
 source ../../activate
 
-$SWAP_ANON           
+$SYN_READ
 # $MMAP_CLOSE
 # $SYN_READ
 # $MMAP_KERNEL

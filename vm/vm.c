@@ -149,11 +149,11 @@ static struct frame *
 vm_evict_frame (void) {
 	struct frame *victim = vm_get_victim (); // 하나의 프레임 받아옴
 
-	// if (!victim)
-	// 	return NULL;
+	if (!victim)
+		return NULL;
 
 	swap_out(victim->page);	// 페이지 스왑 아웃
-	
+	memset(victim->kva, 0, PGSIZE);	// 쓰던거 정리..?	
 	return victim;	// 빈 프레임 반환
 }
 
@@ -362,7 +362,5 @@ hash_bye (struct hash_elem *e, void *aux) {
 /* Free the resource hold by the supplemental page table */
 void
 supplemental_page_table_kill (struct supplemental_page_table *spt) {
-	/* TODO: Destroy all the supplemental_page_table hold by thread and
-	 * TODO: writeback all the modified contents to the storage. */
 	hash_clear(&spt->hash_table, hash_bye);
 }

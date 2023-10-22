@@ -64,6 +64,7 @@ anon_swap_in (struct page *page, void *kva) {
 		disk_read(swap_disk, sector + i, kva + (i * DISK_SECTOR_SIZE));
 	
 	bitmap_set_multiple(swap_bitmap, sector, 8, false);
+	pml4_set_page(thread_current()->pml4, page->va, kva, page->writable);
 	anon_page->start_sector_num = NULL;
 }
 

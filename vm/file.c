@@ -20,7 +20,6 @@ static const struct page_operations file_ops = {
  * 파일 백업 페이지와 관련된 모든 것을 설정할 수 있다. */
 void
 vm_file_init (void) {
-	
 }
 
 /* Initialize the file backed page
@@ -36,10 +35,14 @@ file_backed_initializer (struct page *page, enum vm_type type, void *kva) {
 }
 
 /* Swap in the page by read contents from the file.
- * 파일에서 콘텐츠를 읽어 kva 페이지에서 swap in 한다. 파일 시스템과 동기화해야 한다. */
+ * kva 위치에 있는 페이지를 파일에서 읽어와 페이지를 swap in.
+ * 파일 시스템과 동기화가 필요하다.
+ * 잘 쓰고 잘 지워 */
 static bool
 file_backed_swap_in (struct page *page, void *kva) {
-	struct file_page *file_page UNUSED = &page->file;
+	struct file_page *file_page = &page->file;
+	file_read_at(file_page->file, kva, file_page->read_bytes, file_page->offset);
+	pml4_set_page(thread_current()->pml4, page->va, kva, page->writable);
 }
 
 /* Swap out the page by writeback contents to the file.
@@ -48,7 +51,17 @@ file_backed_swap_in (struct page *page, void *kva) {
  * 페이지를 교체한 후에는 페이지의 dirty bit를 꺼야 한다. */
 static bool
 file_backed_swap_out (struct page *page) {
-	struct file_page *file_page UNUSED = &page->file;
+	struct thread *curr = thread_current();
+	struct file_page *file_page = &page->file;
+
+	if (pml4_is_dirty(curr->pml4, page->va)) {	
+		file_write_at(file_page->file, page->frame->kva, file_page->read_bytes, file_page->offset);
+		pml4_set_dirty(curr->pml4, page->va, 0);
+	}
+	pml4_clear_page(curr->pml4, page->va);
+
+	page->frame->page = NULL;
+	page->frame = NULL;
 }
 
 /* Destory the file backed page. PAGE will be freed by the caller. 
@@ -84,6 +97,7 @@ static bool lazy_load_file(struct page *page, void *aux_) {
 	page->file.offset = aux->ofs;
 	page->file.read_bytes = page_read_bytes;
 	page->file.page_cnt = aux->page_cnt;
+	free(aux);
 	
 	return true;
 }
@@ -137,6 +151,7 @@ void
 do_munmap (void *addr) {
 	struct thread *curr = thread_current();
 	struct page *page = spt_find_page(&curr->spt, addr);
+
 	struct file *file = page->file.file;
 	struct file_page *f_page = &page->file;
 
@@ -149,16 +164,18 @@ do_munmap (void *addr) {
 		if (!page)
 			return false;
  
-		if (pml4_is_dirty(curr->pml4, addr) == 1) {
+		if (pml4_is_dirty(curr->pml4, addr))
 			file_write_at(file, addr, f_page->read_bytes, f_page->offset);
-			pml4_set_dirty(curr->pml4, addr, 0);
-		}
-		cnt--;
+		
 		pml4_clear_page(curr->pml4, addr);
-		addr += PGSIZE;
-		palloc_free_page(page->frame->kva);
+		if (page->frame) {
+			palloc_free_page(page->frame->kva);
+		}
 		hash_delete(&curr->spt.hash_table, &page->hash_elem);
 		free(page);
+		
+		cnt--;
+		addr += PGSIZE;
 	}
 	file_close(file);
 }
