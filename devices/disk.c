@@ -173,14 +173,14 @@ disk_print_stats (void) {
 	}
 }
 
-/* Returns the disk numbered DEV_NO--either 0 or 1 for master or
-   slave, respectively--within the channel numbered CHAN_NO.
+/* DEV_NO로 지정된 디스크 번호(0 또는 1, 마스터 또는 슬레이브에 해당)를 반환하며,
+ 이는 CHAN_NO로 지정된 채널 내의 디스크 번호입니다.
 
-   Pintos uses disks this way:
-0:0 - boot loader, command line args, and operating system kernel
-0:1 - file system
-1:0 - scratch
-1:1 - swap
+Pintos는 다음과 같이 디스크를 사용합니다:
+0:0 - 부트 로더, 명령 줄 인수 및 운영 체제 커널
+0:1 - 파일 시스템
+1:0 - 임시 저장 공간
+1:1 - 스왑
 */
 struct disk *
 disk_get (int chan_no, int dev_no) {
@@ -194,8 +194,7 @@ disk_get (int chan_no, int dev_no) {
 	return NULL;
 }
 
-/* Returns the size of disk D, measured in DISK_SECTOR_SIZE-byte
-   sectors. */
+/* 디스크 d의 크기를 DISK_SECTOR_SIZE 바이트 섹터로 측정한 크기를 반환합니다. */
 disk_sector_t
 disk_size (struct disk *d) {
 	ASSERT (d != NULL);
@@ -203,10 +202,9 @@ disk_size (struct disk *d) {
 	return d->capacity;
 }
 
-/* Reads sector SEC_NO from disk D into BUFFER, which must have
-   room for DISK_SECTOR_SIZE bytes.
-   Internally synchronizes accesses to disks, so external
-   per-disk locking is unneeded. */
+/* 디스크 d에서 sec_no를 buffer로 읽어들인다.
+   buffer는 DISK_SECTOR_SIZE 만큼을 수용할 공간이 있어야 한다.
+   내부적으로 디스크 액세스를 동기화하므로 외부 디스크 잠금이 필요하지 않다. */
 void
 disk_read (struct disk *d, disk_sector_t sec_no, void *buffer) {
 	struct channel *c;
@@ -226,11 +224,9 @@ disk_read (struct disk *d, disk_sector_t sec_no, void *buffer) {
 	lock_release (&c->lock);
 }
 
-/* Write sector SEC_NO to disk D from BUFFER, which must contain
-   DISK_SECTOR_SIZE bytes.  Returns after the disk has
-   acknowledged receiving the data.
-   Internally synchronizes accesses to disks, so external
-   per-disk locking is unneeded. */
+/* 버퍼 BUFFER에서 DISK_SECTOR_SIZE 바이트를 포함해
+ * 디스크 d의 섹터 SEC_NO로 씁니다. 데이터 수신을 확인한 후에 반환합니다.
+ * 내부적으로 디스크 액세스를 동기화하므로 외부 디스크 별 잠금이 필요하지 않습니다. */
 void
 disk_write (struct disk *d, disk_sector_t sec_no, const void *buffer) {
 	struct channel *c;
@@ -249,7 +245,7 @@ disk_write (struct disk *d, disk_sector_t sec_no, const void *buffer) {
 	d->write_cnt++;
 	lock_release (&c->lock);
 }
-
+
 /* Disk detection and identification. */
 
 static void print_ata_string (char *string, size_t size);
@@ -445,7 +441,7 @@ static void
 output_sector (struct channel *c, const void *sector) {
 	outsw (reg_data (c), sector, DISK_SECTOR_SIZE / 2);
 }
-
+
 /* Low-level ATA primitives. */
 
 /* Wait up to 10 seconds for the controller to become idle, that
@@ -510,7 +506,7 @@ select_device_wait (const struct disk *d) {
 	select_device (d);
 	wait_until_idle (d);
 }
-
+
 /* ATA interrupt handler. */
 static void
 interrupt_handler (struct intr_frame *f) {

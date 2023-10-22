@@ -149,8 +149,8 @@ static struct frame *
 vm_evict_frame (void) {
 	struct frame *victim = vm_get_victim (); // 하나의 프레임 받아옴
 
-	if (!victim)
-		return NULL;
+	// if (!victim)
+	// 	return NULL;
 
 	swap_out(victim->page);	// 페이지 스왑 아웃
 	
@@ -170,18 +170,15 @@ vm_get_frame (void) {
 	// anonymous case를 위해 PAL_ZERO 플래그 설정(프레임 내용 0으로 초기화)
 	new_frame->kva = palloc_get_page(PAL_USER | PAL_ZERO);	// 물리 메모리 할당 후 그 위치의 kva 반환
 	
-	if  (!new_frame || !new_frame->kva) {
-		PANIC("fail~~~");
-		return NULL;
-	}
-
 	// user pool로부터 물리 메모리 할당 실패 시
-	if (!new_frame->kva) {
+	if (!new_frame || !new_frame->kva) {
+		if (!new_frame)
+			free(new_frame);
 		// user pool이 다 찼다는 뜻(모두 사용중)이므로 evicted_frame으로 빈자리 만들어줌
 		// 페이지 swap out 기법을 사용하여 새로운 물리 메모리 할당: 삭제할 페이지 디스크로 이동
 		new_frame = vm_evict_frame();	// 페이지 스왑아웃을 수행하여 빈 프레임 반환
-		new_frame->page = NULL;		// 새로운 프레임 초기화
-		return new_frame;
+		new_frame->page = NULL;			// 새로운 프레임 초기화
+		// return new_frame;
 	}
 
 	// 할당 받은 frame을 frame_table에 추가

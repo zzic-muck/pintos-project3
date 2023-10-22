@@ -20,6 +20,7 @@ static const struct page_operations file_ops = {
  * 파일 백업 페이지와 관련된 모든 것을 설정할 수 있다. */
 void
 vm_file_init (void) {
+	
 }
 
 /* Initialize the file backed page
@@ -34,13 +35,17 @@ file_backed_initializer (struct page *page, enum vm_type type, void *kva) {
 	struct file_page *file_page = &page->file;
 }
 
-/* Swap in the page by read contents from the file. */
+/* Swap in the page by read contents from the file.
+ * 파일에서 콘텐츠를 읽어 kva 페이지에서 swap in 한다. 파일 시스템과 동기화해야 한다. */
 static bool
 file_backed_swap_in (struct page *page, void *kva) {
 	struct file_page *file_page UNUSED = &page->file;
 }
 
-/* Swap out the page by writeback contents to the file. */
+/* Swap out the page by writeback contents to the file.
+ * 내용을 다시 파일에 기록하여 swap out한다.
+ * 우선 페이지가 dirty인지 확인하는 것이 좋다. dirty=0이면 파일의 내용을 수정할 필요가 없다.
+ * 페이지를 교체한 후에는 페이지의 dirty bit를 꺼야 한다. */
 static bool
 file_backed_swap_out (struct page *page) {
 	struct file_page *file_page UNUSED = &page->file;
@@ -54,7 +59,8 @@ file_backed_swap_out (struct page *page) {
 static void
 file_backed_destroy (struct page *page) {
 	struct file_page *file_page = &page->file;
-	file_write_at(file_page->file, page->va, file_page->read_bytes, file_page->offset);
+	if (pml4_is_dirty(thread_current()->pml4, page->va) == 1)
+		file_write_at(file_page->file, page->va, file_page->read_bytes, file_page->offset);
 }
 
 static bool lazy_load_file(struct page *page, void *aux_) {
@@ -82,7 +88,6 @@ static bool lazy_load_file(struct page *page, void *aux_) {
 	return true;
 }
 
-// TODO: 오늘까지 맴매 못하면 못잠
 /* Do the mmap
  * 성공적으로 페이지를 생성하면 addr을 반환한다.
  * 파일 타입이 FILE인 UNINIT 페이지를 생성한 후 page-fault가 발생하면
@@ -138,7 +143,7 @@ do_munmap (void *addr) {
 	int cnt = f_page->page_cnt;
 
 	while (cnt > 0) {
-		// 페이지 변경되어있을 경우 디스크에 존재하는 file에 write해주고 dirty-beat를 다시 0으로 변경
+		// 페이지 변경되어있을 경우 디스크에 존재하는 file에 write해주고 dirty-bit를 다시 0으로 변경
 		page = spt_find_page(&curr->spt, addr);
 		
 		if (!page)
@@ -148,7 +153,6 @@ do_munmap (void *addr) {
 			file_write_at(file, addr, f_page->read_bytes, f_page->offset);
 			pml4_set_dirty(curr->pml4, addr, 0);
 		}
-
 		cnt--;
 		pml4_clear_page(curr->pml4, addr);
 		addr += PGSIZE;
