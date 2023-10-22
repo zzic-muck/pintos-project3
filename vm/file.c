@@ -42,7 +42,19 @@ file_backed_initializer (struct page *page, enum vm_type type, void *kva) {
 static bool
 file_backed_swap_in (struct page *page, void *kva) {
 	struct file_page *file_page UNUSED = &page->file;
-	return lazy_load_segment(page, file_page);
+	
+	ASSERT (page -> frame -> kva == kva);
+
+	void *addr = page -> va;
+	struct file *file = file_page -> file;
+	size_t length = file_page -> read_bytes;
+	off_t offset = file_page -> ofs;
+
+	if (file_read_at (file, kva, length, offset) != length) {
+		return false;
+	}
+
+	return true;
 }
 
 /* Swap out the page by writeback contents to the file. */
@@ -51,13 +63,13 @@ file_backed_swap_out (struct page *page) {
 	struct file_page *file_page UNUSED = &page->file;
 
 	if (pml4_is_dirty(thread_current() -> pml4, page -> va)) {
-		file_write_at (file_page -> file, page -> va, file_page -> read_bytes, file_page -> ofs);
-		pml4_set_dirty (thread_current() -> pml4, page -> va, 0);
+		file_write_at (file_page -> file, page -> frame -> kva, file_page -> read_bytes, file_page -> ofs);
+		// pml4_set_dirty (thread_current() -> pml4, page -> va, 0);
 	}
 
+	pml4_clear_page (thread_current () -> pml4, page -> va);
 	page -> frame -> page = NULL;
 	page -> frame = NULL;
-	pml4_clear_page (thread_current () -> pml4, page -> va);
 	return true;
 }
 
@@ -196,7 +208,7 @@ do_munmap (void *addr) {
 			destroy (target_page);
 		// }
 		// pml4_clear_page(thread_current() -> pml4, target_page -> va);
-		// hash_delete(spt, &target_page ->hash_elem);
+		hash_delete(spt, &target_page ->hash_elem);
 		addr += PGSIZE;
 		target_page = spt_find_page(spt,addr);
 	}
