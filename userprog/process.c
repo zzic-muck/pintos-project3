@@ -307,6 +307,8 @@ int process_wait(tid_t child_tid) {
 
 /* thread_exit에서 호출되는 함수로, 프로세스를 종료시킴. */
 void process_exit(void) {
+    // printf("process_exit start\n");
+    // printf("thread status : %d\n", thread_current() -> status);
 
     struct thread *curr = thread_current();
     struct file **table = curr->fd_table;
@@ -779,7 +781,7 @@ bool lazy_load_segment(struct page *page, void *aux) {
     /* TODO: This called when the first page fault occurs on address VA. */
     /* TODO: VA is available when calling this function. */
     ASSERT(page -> frame -> kva != NULL);
-    struct file_page *file_page UNUSED = &page->file;
+    struct file_page *file_page = &page->file;
     struct lazy_load_aux *aux_ = (struct lazy_load_aux *)aux;
     size_t page_read_bytes = aux_->read_bytes;
     size_t page_zero_bytes = aux_->zero_bytes;
@@ -797,7 +799,7 @@ bool lazy_load_segment(struct page *page, void *aux) {
         }
 
         /* Load this page. */
-        if (file_read_at(aux_-> file, page -> frame -> kva, page_read_bytes, aux_->ofs) != (int)page_read_bytes) {
+        if (file_read_at(aux_-> file, page -> frame -> kva, page_read_bytes, aux_->ofs) != page_read_bytes) {
             free(aux_);
             return false;
         }

@@ -81,6 +81,7 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 		
 		//1. 빈 페이지를 생성
 		struct page *page = (struct page *)malloc(sizeof(struct page));
+		upage = pg_round_down(upage);
 		//2. type에 따라 초기화 함수를 가져온다.
 		bool (*page_initializer)(struct page*, enum vm_type, void*);
 		
@@ -91,9 +92,10 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 
 			case VM_FILE:
 				page_initializer = file_backed_initializer;
-				break; 
+				break;
+
 			default:
-				free(page);
+				// free(page);
 				break;
 		}
 
@@ -103,7 +105,10 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 		page -> writable = writable; 
 
 		//spt에 page를 넣어준다.
-		return spt_insert_page(spt, page);
+		if (!spt_insert_page(spt, page)) {
+			return false;
+		}
+		return true;
 	}
 
 err:
@@ -241,6 +246,7 @@ vm_get_frame (void) {
 	new_frame -> kva = palloc_get_page(PAL_USER | PAL_ZERO);
 	//할당이 안 됐을 때 예외처리
 	if (new_frame -> kva == NULL) {
+		// printf("get_frame_here\n");
 		//user pool 이 다 찼다는 뜻이므로 evict_frame 으로 빈자리를 만든다.
 		new_frame = vm_evict_frame();
 		//hash에서도 삭제하는 코드 필요..
@@ -287,12 +293,12 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	}
 
 	if (is_kernel_vaddr(addr)) {
-		return false;
+ 		return false;
 	}
 
-	if (USER_STACK - (1 << 20) <= addr && thread_current() -> rsp - 8 <= addr && addr <= thread_current() -> stack_bottom) {
-		vm_stack_growth(addr);
-	} 
+	// if (USER_STACK - (1 << 20) <= addr && thread_current() -> rsp - 8 <= addr && addr <= thread_current() -> stack_bottom) {
+	// 	vm_stack_growth(addr);
+	// } 
 
 	//접근한 메모리의 physical page가 존재하지 않는 경우
 	if (not_present) {
@@ -351,7 +357,7 @@ static bool
 vm_do_claim_page (struct page *page) {
 	//project 3
 	// 페이지가 유효하지 않거나, 페이지가 이미 차지된 경우
-	if (!page || page->frame)
+	if (!page)
 		return false;
 
 	struct frame *frame = vm_get_frame (); //프레임 할당받음
