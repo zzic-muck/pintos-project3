@@ -216,11 +216,11 @@ vm_handle_wp (struct page *page UNUSED) {
  * write: true일 경우 해당 페폴이 쓰기 요청이고 그렇지 않을 경우 읽기 요청
  * non-present: 해당 인자가 false인 겨우 read-only 페이지에 write 하려는 상황 */
 bool
-vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
-		bool user UNUSED, bool write UNUSED, bool not_present UNUSED) {
+vm_try_handle_fault (struct intr_frame *f, void *addr,
+		bool user, bool write, bool not_present) {
 		
 	struct thread *curr = thread_current();
-	struct supplemental_page_table *spt UNUSED = &thread_current()->spt;
+	struct supplemental_page_table *spt = &thread_current()->spt;
 	
 	// 페이지 폴트가 발생한 가상 주소 및 인자들이 유효한지 체크
 	if (!is_user_vaddr(addr))

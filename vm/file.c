@@ -62,6 +62,7 @@ file_backed_swap_out (struct page *page) {
 
 	page->frame->page = NULL;
 	page->frame = NULL;
+	return true;
 }
 
 /* Destory the file backed page. PAGE will be freed by the caller. 
@@ -130,7 +131,7 @@ do_mmap (void *addr, size_t length, int writable, struct file *file, off_t offse
 		aux->read_bytes = length < PGSIZE ? length : PGSIZE;
 		aux->zero_bytes = PGSIZE - aux->read_bytes;
 		aux->writable = writable;
-		aux->page_cnt = origin_length / PGSIZE;
+		aux->page_cnt = origin_length / PGSIZE; 
 		
 		if (!vm_alloc_page_with_initializer(VM_FILE, addr, writable, lazy_load_file, aux)) {
 			free(aux);

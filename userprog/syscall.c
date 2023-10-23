@@ -47,7 +47,7 @@ void release_fd(int fd);
 void close_file(int fd);
 // fd_table_destroy는 syscall.h로 이동
 
-struct semaphore filesys_sema; // 파일시스템 동기화를 위한 세마포어
+// struct semaphore filesys_sema; // 파일시스템 동기화를 위한 세마포어
 
 ////////////////////////////////////////////////////////////////////////////////
 //////////////////////////// System Call Handlers //////////////////////////////
@@ -69,7 +69,8 @@ struct semaphore filesys_sema; // 파일시스템 동기화를 위한 세마포�
 void syscall_init(void) {
     write_msr(MSR_STAR, ((uint64_t)SEL_UCSEG - 0x10) << 48 | ((uint64_t)SEL_KCSEG) << 32);
     write_msr(MSR_LSTAR, (uint64_t)syscall_entry);
-    sema_init(&filesys_sema, 1);
+    // sema_init(&filesys_sema, 1);
+
     /* The interrupt service rountine should not serve any interrupts
      * until the syscall_entry swaps the userland stack to the kernel
      * mode stack. Therefore, we masked the FLAG_FL. */
@@ -268,12 +269,12 @@ void halt(void) { power_off(); }
    만일 프로세스의 Parent가 기다리고 있다면 status 값이 parent에게 전달됨.
    전통적으로 0은 Success, nonzero value는 실패를 의미함 (return). */
 void exit(int status) {
-
+    thread_current()->exit_status = status;
     /* 테스트 통과용 printf */
     printf("%s: exit(%d)\n", thread_current()->name, status); // 이걸 process_exit()으로 옮기면 syn-read가 조금 더 진행됨 (;;)
 
     /* 유저 프로그램이 직접 제공한 status 값을 exit 하는 프로세스/스레드의 exit_status 값으로 저장 */
-    thread_current()->exit_status = status;
+    // thread_current()->exit_status = status;
 
     /* 스레드 죽이기 */
     thread_exit();
@@ -286,19 +287,20 @@ void exit(int status) {
    기본적으로 pml4_for_each()로 메모리와 페이지테이블 구조를 복제하지만, 이 함수에 들어갈 func를 작성해야 함 (duplicate_pte). */
 pid_t fork(const char *thread_name, struct intr_frame *snapshot) {
 
-    if (!pointer_validity_check(thread_name))
-        return false;
+    // if (!pointer_validity_check(thread_name))
+    //     return false;
 
     /* 시스템콜이 발생한 시점의 Parent intr_frame을 저장하고 process_fork로 전달 */
-    pid_t pid = process_fork(thread_name, snapshot);
+    // pid_t pid = process_fork(thread_name, snapshot);
 
-    /* 만일 포크가 실패한다면 */
-    if (pid == TID_ERROR) {
-        return TID_ERROR;
-    }
+    // /* 만일 포크가 실패한다면 */
+    // if (pid == TID_ERROR) {
+    //     return TID_ERROR;
+    // }
 
     /* 포크 성공! ; do_fork에서 child의 %Rax 값을 0으로 만들어줬기 때문에 리턴값은 자동으로 처리됨 */
-    return pid;
+    // return pid;
+    return process_fork(thread_name, snapshot);
 }
 
 /* 현재 구동중인 프로세스를 cmd_line이라는 이름을 가진 executable로 바꾸는 함수 (switch execution state of same process).
@@ -342,7 +344,7 @@ int wait(pid_t pid) {
    성공하면 true, 실패하면 false를 반환하면 됨.
    생성에 성공한다고 해서 그 파일을 여는게 아님 (별도의 시스템콜로 진행됨) */
 bool create(const char *file, unsigned initial_size) {
-
+    file_lock_acquire();
     if (!pointer_validity_check(file)) {
         exit(-1);
     }
@@ -350,7 +352,7 @@ bool create(const char *file, unsigned initial_size) {
     /* filesys.c의 filesys_create 함수 사용 ; 이 함수도 성공시 bool 반환 */
     bool success = false;
     success = filesys_create(file, initial_size);
-
+    file_lock_release();
     /* 따라서 그냥 그대로 돌려주면 됨 */
     return success;
 }
@@ -386,10 +388,13 @@ int open(const char *file) {
         exit(-1);
     }
 
+    file_lock_acquire();
+
     /* 파일을 열어보려고 시도하고, 실패시 -1 반환 (struct file 필수) */
     struct file *opened_file;
     opened_file = filesys_open(file); // *file의 주소 file
     if (!opened_file) {
+        file_lock_release();
         return -1;
     }
 
@@ -406,6 +411,7 @@ int open(const char *file) {
         file_close(opened_file);
         return -1;
     }
+    file_lock_release();
 
     /* 여기까지 왔으면 성공했으니 fd값 반환 */
     return fd;
@@ -446,21 +452,45 @@ int read(int fd, void *buffer, unsigned size) {
     /* 읽어온 바이트 수를 기록할 변수 초기화 */
     int read_count = 0;
 
+    file_lock_acquire();
+
     /* fd = 0의 케이스 처리 ; input_getc()는 글자를 하나씩 읽어서 리턴하는 함수 (input.c) */
     if (fd == 0) {
         for (unsigned int i = 0; i < size; i++) {
             ((unsigned char *)buffer)[i] = input_getc();
             read_count++;
         }
-        return read_count;
-    }
+    //     return read_count;
+    // }
 
-    /* fd = 0이 아닐 경우 */
-    struct file *file = get_file_from_fd(fd);
-    if (!file) {
-        return -1; // exit(-1)을 하려다가, 공식 문서에 적힌대로 우선 -1로 바꾼 상태
+    // /* fd = 0이 아닐 경우 */
+    // struct file *file = get_file_from_fd(fd);
+    // if (!file) {
+    //     return -1; // exit(-1)을 하려다가, 공식 문서에 적힌대로 우선 -1로 바꾼 상태
+    // }
+    file_lock_release();
+    } else {
+        if (fd < 2) {
+            file_lock_release();
+            return -1;
+        }
+        /* fd = 0이 아닐 경우 */
+        struct file *file = get_file_from_fd(fd);
+        if (!file) {
+            file_lock_release();
+            return -1; // exit(-1)을 하려다가, 공식 문서에 적힌대로 우선 -1로 바꾼 상태
+        }
+        // 커널 풀에서 writable이 0이라도 read write 가 일어나므로, 오로지 read 만 일어날 수 있게 하기 위해 처리
+        struct page *page = spt_find_page(&thread_current()->spt,buffer);
+        if(page && !page->writable){
+            file_lock_release();
+            exit(-1);
+        }
+
+        read_count = file_read(file, buffer, size); // file_read는 size를 (off_t*) 형태로 바라는 것 같은데, 에러가 떠서 일단 일반 사이즈로 넣음
+        file_lock_release();
     }
-    read_count = file_read(file, buffer, size); // file_read는 size를 (off_t*) 형태로 바라는 것 같은데, 에러가 떠서 일단 일반 사이즈로 넣음
+    // read_count = file_read(file, buffer, size); // file_read는 size를 (off_t*) 형태로 바라는 것 같은데, 에러가 떠서 일단 일반 사이즈로 넣음
     return read_count;
 }
 
@@ -493,8 +523,10 @@ int write(int fd, const void *buffer, unsigned size) {
         return NULL;
     } // 만일 deny_write라면 실패 반환 (임시, sync_write 등에서 수정 필요할 가능성 높음)
 
+    file_lock_acquire();
     int bytes_written = file_write(file_to_write, buffer, size);
 
+    file_lock_release();
     // sema_up(&filesys_sema);
 
     return bytes_written;

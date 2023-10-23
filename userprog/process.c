@@ -30,6 +30,7 @@ static void process_cleanup(void);
 static bool load(const char *file_name, struct intr_frame *if_);
 static void initd(void *f_name);
 static void __do_fork(void *);
+struct thread *get_child_process(int pid);
 
 ////////////////////////////////////////////////////////////////////////////////
 //////////////////////////// Process Initiation ////////////////////////////////
@@ -102,9 +103,23 @@ tid_t process_fork(const char *name, struct intr_frame *if_) {
     if (pid == TID_ERROR) {
         return TID_ERROR;
     }
+    struct thread *child = get_child_process(pid);
 
     /* Caller의 fork_sema를 내리면서 대기 상태 진입 ; _do_fork가 끝날때 Callee가 sema_up 예정 */
-    sema_down(&thread_current()->fork_sema);
+    // sema_down(&thread_current()->fork_sema);
+    sema_down(&child->fork_sema);
+    
+    if (child->exit_status == TID_ERROR) {
+        // 자식이 종료되었으므로 자식 리스트에서 제거한다.
+        // 이거 넣으면 간헐적으로 실패함 (syn-read)
+        // list_remove(&child->child_elem);
+        // 자식이 완전히 종료되고 스케줄링이 이어질 수 있도록 자식에게 signal을 보낸다.
+        // sema_up(&child->exit_sema);
+        // 자식 프로세스의 pid가 아닌 TID_ERROR를 반환한다.
+        return TID_ERROR;
+    }
+
+
 
     return pid;
 }
@@ -184,22 +199,22 @@ static void __do_fork(void *aux) {
 #endif
 
     /* (3) File Descriptor를 복사 ; thread_create에서 palloc은 완료 */
-    lock_acquire(&parent->fd_lock);
-    for (int i = 2; i < 256; i++) {
-        if (parent->fd_table[i] != 0) {
+    // lock_acquire(&parent->fd_lock);
+    // for (int i = 2; i < 256; i++) {
+    for (int i = 0; i < 256; i++) {
+        if (parent->fd_table[i] != NULL) {
             current->fd_table[i] = file_duplicate(parent->fd_table[i]);
         } else {
             current->fd_table[i] = 0;
         }
     }
-    lock_release(&parent->fd_lock);
-
-    /* (4) 새로 생성되는 프로세스와 관련된 초기화 작업 수행 */
-    process_init();
-
     /* (5) 부모의 Children 리스트에 자식의 child_elem을 넣고, child의 부모 포인터를 업데이트하고, sema_up으로 포크가 완료됨을 통보 */
     current->parent_is = parent; // thread_create()시점에 정의하긴 했으나, fork caller가 맞도록 다시 재확인
-    sema_up(&parent->fork_sema);
+    // lock_release(&parent->fd_lock);
+
+    /* (4) 새로 생성되는 프로세스와 관련된 초기화 작업 수행 */
+    sema_up(&current->fork_sema);
+    process_init();
 
     /* 최종적으로 완성된 child process로 switch 하는 과정 ; 단, fork된 child는 parent의 fork()에서 사용된 R.rax 값이 비어야 함 */
     if (succ) {
@@ -207,7 +222,7 @@ static void __do_fork(void *aux) {
         do_iret(&child_if_);
     }
 error:
-    sema_up(&parent->fork_sema);
+    sema_up(&current->fork_sema);
     exit(-1);
 }
 
@@ -246,9 +261,9 @@ int process_exec(void *f_name) {
 #endif
     /* 임시로 저장한 intr_frame을 활용해서 파일을 디스크에서 실제로 로딩, 실패시 -1 반환으로 방어.
        load() 함수에서 _if의 값들을 마저 채우고 현재 스레드로 적용함. */
-
+    file_lock_acquire();
     success = load(file_name, &_if);
-
+    file_lock_release();
     palloc_free_page(file_name);
     if (!success)
         return -1;
@@ -268,20 +283,22 @@ int process_exec(void *f_name) {
 int process_wait(tid_t child_tid) {
 
     struct thread *curr = thread_current();
-    struct thread *child = NULL;
+    // struct thread *child = NULL;
 
     /* (1) Parent의 children_list를 탐색해서 제공된 tid 매칭 작업 수행 */
-    struct list_elem *e;
-    for (e = list_begin(&curr->children_list); e != list_end(&curr->children_list); e = list_next(e)) {
-        struct thread *t = list_entry(e, struct thread, child_elem);
-        if (t->tid == child_tid) {
-            child = t; // 발견
-            break;
-        }
-    }
+    // struct list_elem *e;
+    // for (e = list_begin(&curr->children_list); e != list_end(&curr->children_list); e = list_next(e)) {
+    //     struct thread *t = list_entry(e, struct thread, child_elem);
+    //     if (t->tid == child_tid) {
+    //         child = t; // 발견
+    //         break;
+    //     }
+    // }
+    struct thread *child = get_child_process(child_tid);
 
     /* (2) 매치가 없다면, 또는 있는데 이미 누군가 wait를 걸었다면, 예외처리. */
-    if (!child || child->already_waited) {
+    // if (!child || child->already_waited) {
+    if (!child) {
         return -1;
     }
 
@@ -328,13 +345,18 @@ void process_exit(void) {
 
     /* 페이지 테이블 메모리 반환 및 pml4 리셋 */
     palloc_free_page(table);
+    file_close(curr->running);
+
     process_cleanup();
+    hash_destroy(&curr->spt.hash_table, NULL);
 
     /* 부모의 wait() 대기 ; 부모가 wait을 해줘야 죽을 수 있음 (한계) */
-    if (curr->parent_is) {
-        sema_up(&curr->wait_sema);
-        sema_down(&curr->free_sema);
-    }
+    // if (curr->parent_is) {
+    //     sema_up(&curr->wait_sema);
+    //     sema_down(&curr->free_sema);
+    // }
+    sema_up(&curr->wait_sema);
+    sema_down(&curr->free_sema);
 }
 
 /* 현재 프로세스의 페이지 테이블 매핑을 초기화하고, 커널 페이지 테이블만 남기는 함수 */
@@ -552,6 +574,9 @@ static bool load(const char *file_name, struct intr_frame *if_) {
             break;
         }
     }
+    t->running = file;
+
+    file_deny_write(file);
 
     /* if_ 구조체를 위해서 User Stack을 Allocate 한 뒤 %rsp를 업데이트 */
     if (!setup_stack(if_))
@@ -852,3 +877,20 @@ static bool setup_stack(struct intr_frame *if_) {
     return success;
 }
 #endif /* VM */
+
+// 자식 리스트에서 원하는 프로세스를 검색하는 함수
+struct thread *get_child_process(int pid)
+{
+	/* 자식 리스트에 접근하여 프로세스 디스크립터 검색 */
+	struct thread *cur = thread_current();
+	struct list *child_list = &cur->children_list;
+	for (struct list_elem *e = list_begin(child_list); e != list_end(child_list); e = list_next(e))
+	{
+		struct thread *t = list_entry(e, struct thread, child_elem);
+		/* 해당 pid가 존재하면 프로세스 디스크립터 반환 */
+		if (t->tid == pid)
+			return t;
+	}
+	/* 리스트에 존재하지 않으면 NULL 리턴 */
+	return NULL;
+}
