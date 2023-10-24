@@ -38,6 +38,7 @@ struct page_operations;
 struct thread;
 struct data;
 
+
 #define VM_TYPE(type) ((type) & 7)
 
 /* The representation of "page".
@@ -146,9 +147,5 @@ void vm_dealloc_page (struct page *page);
 bool vm_claim_page (void *va);
 enum vm_type page_get_type (struct page *page);
 
-// struct list swap_table;
-// struct list frame_table;
-// struct lock swap_table_lock;
-// struct lock frame_table_lock;
 
 #endif  /* VM_VM_H */

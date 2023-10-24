@@ -241,7 +241,6 @@ void halt(void) { power_off(); }
    만일 프로세스의 Parent가 기다리고 있다면 status 값이 parent에게 전달됨.
    전통적으로 0은 Success, nonzero value는 실패를 의미함 (return). */
 void exit(int status) {
-
     /* 테스트 통과용 printf */
     printf("%s: exit(%d)\n", thread_current()->name, status); // 이걸 process_exit()으로 옮기면 syn-read가 조금 더 진행됨 (;;)
 
