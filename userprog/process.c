@@ -810,7 +810,7 @@ static bool lazy_load_segment(struct page *page, void *aux_) {
     // 읽어온 데이터 이후의 나머지 바이트 0으로 설정하는 역할
     // 페이지에 남은 부분은 0으로 초기화되어 메모리가 쓰레기 값으로 채워지지 않고 초기화된 페이지가 사용자 프로세스에 안전하게 전달된다.
     memset(page->frame->kva + page_read_bytes, 0, page_zero_bytes);
-
+    
     return true;
 }
 

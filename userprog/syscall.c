@@ -167,35 +167,30 @@ void syscall_handler(struct intr_frame *f) {
  * addr에서부터 시작하여 지정된 length만큼의 메모리를 할당하고 파일 또는 다른 리소스를 이 메모리에 매핑한다. */
 void *mmap(void *addr, size_t length, int writable, int fd, off_t offset) {
     // 첫번째 검증
-    if (offset % PGSIZE != 0) {
+    if (offset % PGSIZE != 0)
         return false;
-    }
 
     // 두번째 검증
-    if (!addr || pg_round_down(addr) != addr || is_kernel_vaddr(addr)) {
+    if (!addr || pg_round_down(addr) != addr || is_kernel_vaddr(addr))
         return false;
-    }
 
     // 세번째 검증
-    if (length <= 0) {
+    if ((long)length <= 0)
         return false;
-    }
-    
+
     // 네번째 검증
     struct thread *curr = thread_current();
-    if (spt_find_page(&curr->spt, addr)){
+    if (spt_find_page(&curr->spt, addr))
         return false;
-    }
-    
-    // 마지막 검증
-    // if (fd == 0 || fd == 1)
-    //     return true;
 
-    // else if (fd >= 2 && fd < LOADER_ARGS_LEN) {
-    //     if (curr->fd_table[fd])
-    //         return true;
-    // }
-    // return false;
+    // 마지막 검증
+    struct file *file = get_file_from_fd(fd);
+    if (fd == 0 || fd == 1)
+        return false;
+
+    if (!file) 
+        return false;
+
     return do_mmap(addr, length, writable, curr->fd_table[fd], offset);  // 검증 성공적으로 통과 시 호출
 }
 
