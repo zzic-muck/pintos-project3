@@ -13,5 +13,6 @@ check_expected (IGNORE_EXIT_CODES => 1, [<<'EOF']);
 (mmap-exit) verified contents of "sample.txt"
 (mmap-exit) close "sample.txt"
 (mmap-exit) end
+
 EOF
 pass;

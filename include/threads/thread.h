@@ -108,7 +108,7 @@ struct thread {
 
     struct list_elem elem; /* 원래 포함되어 있는, 가장 기본적인 thread elem */
 
-    // #ifdef USERPROG
+// #ifdef USERPROG
 
     /* 기본적으로 포함되어있는 멤버 */
     uint64_t *pml4; /* Page map level 4 */
@@ -116,6 +116,7 @@ struct thread {
     /* File Descriptor 관리를 위한 멤버 */
     struct lock fd_lock;    // Allocate_fd()에서 사용되는 락, per thread
     struct file **fd_table; // File Descriptor Table ; init_thread에서 한번 초기화
+    struct file *running;
 
     /* process_wait() 및 exit()을 위해서 추가된 멤버 */
 
@@ -133,10 +134,12 @@ struct thread {
     int fork_depth;  // 포크 얼마나 했는지 알아야 함
     
 
-    // #endif
+// #endif
 // #ifdef VM
     /* Table for whole virtual memory owned by thread. */
     struct supplemental_page_table spt;
+    void* stack_bottom;
+    void* rsp_stack;
 // #endif
 
     /* Owned by thread.c. */
@@ -187,4 +190,6 @@ bool comparison_for_readylist_insertion(const struct list_elem *new, const struc
 bool comparison_for_priority_donation(const struct list_elem *new, const struct list_elem *existing, void *aux UNUSED);
 void thread_check_yield(void);
 
+void file_lock_acquire();
+void file_lock_release();
 #endif /* threads/thread.h */

@@ -10,6 +10,7 @@
 #include "threads/thread.h"
 #include "userprog/gdt.h"
 #include "userprog/process.h" // 관련 파일 헤더들 전부 연결
+#include "vm/vm.h"
 #include <stdio.h>
 #include <syscall-nr.h>
 
@@ -36,6 +37,8 @@ int write(int fd, const void *buffer, unsigned size);
 void seek(int fd, unsigned position);
 unsigned tell(int fd);
 void close(int fd);
+void *mmap(void *addr, size_t length, int writable, int fd, off_t offset);
+void munmap(void *addr);
 
 /* File Descriptor 관련 함수 Prototype & Global Variables */
 int allocate_fd(struct file *file);
@@ -44,7 +47,7 @@ void release_fd(int fd);
 void close_file(int fd);
 // fd_table_destroy는 syscall.h로 이동
 
-struct semaphore filesys_sema; // 파일시스템 동기화를 위한 세마포어
+// struct semaphore filesys_sema; // 파일시스템 동기화를 위한 세마포어
 
 ////////////////////////////////////////////////////////////////////////////////
 //////////////////////////// System Call Handlers //////////////////////////////
@@ -66,7 +69,8 @@ struct semaphore filesys_sema; // 파일시스템 동기화를 위한 세마포�
 void syscall_init(void) {
     write_msr(MSR_STAR, ((uint64_t)SEL_UCSEG - 0x10) << 48 | ((uint64_t)SEL_KCSEG) << 32);
     write_msr(MSR_LSTAR, (uint64_t)syscall_entry);
-    sema_init(&filesys_sema, 1);
+    // sema_init(&filesys_sema, 1);
+
     /* The interrupt service rountine should not serve any interrupts
      * until the syscall_entry swaps the userland stack to the kernel
      * mode stack. Therefore, we masked the FLAG_FL. */
@@ -143,13 +147,55 @@ void syscall_handler(struct intr_frame *f) {
     case SYS_CLOSE:
         close(f->R.rdi);
         break;
+    
+    case SYS_MMAP:
+        f->R.rax = mmap(f->R.rdi, f->R.rsi, f->R.rdx, f->R.r10, f->R.r8);
+        break;
+    
+    case SYS_MUNMAP:
+        munmap(f->R.rdi);
+        break;
 
     default:
         printf("Unknown system call: %d\n", syscall_num); // deprecated by placeholder, but kept in place
         thread_exit();
     }
-
     return;
+}
+
+/* addr: 메모리 매핑 작업이 시작되는 위치 (메모리 영역의 시작 위치)
+ * addr에서부터 시작하여 지정된 length만큼의 메모리를 할당하고 파일 또는 다른 리소스를 이 메모리에 매핑한다. */
+void *mmap(void *addr, size_t length, int writable, int fd, off_t offset) {
+    // 첫번째 검증
+    if (offset % PGSIZE != 0)
+        return false;
+
+    // 두번째 검증
+    if (!addr || pg_round_down(addr) != addr || is_kernel_vaddr(addr))
+        return false;
+
+    // 세번째 검증
+    if ((long)length <= 0)
+        return false;
+
+    // 네번째 검증
+    struct thread *curr = thread_current();
+    if (spt_find_page(&curr->spt, addr))
+        return false;
+
+    // 마지막 검증
+    struct file *file = get_file_from_fd(fd);
+    if (fd == 0 || fd == 1)
+        return false;
+
+    if (!file) 
+        return false;
+
+    return do_mmap(addr, length, writable, curr->fd_table[fd], offset);  // 검증 성공적으로 통과 시 호출
+}
+
+void munmap(void *addr) {
+    do_munmap(addr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -168,9 +214,11 @@ bool pointer_validity_check(void *addr) {
         return false;
 
     /* 제공된 주소가 Unmapped일 경우 */
-    if (pml4_get_page(thread_current()->pml4, addr) == NULL)
-        return false; // pml4만 확인하는 함수 (나머지 레벨의 page table 들도 검사해야하는데, 우선 이렇게)
-
+    // pml4_get_page 에러처리 하게 되면 lazy loading 후 페이지 폴트 날 때마다 return false 되므로 하면 안됨!
+    // if (pml4_get_page(thread_current()->pml4, addr) == NULL)
+    //     return false; // pml4만 확인하는 함수 (나머지 레벨의 page table 들도 검사해야하는데, 우선 이렇게)
+    if (!pml4e_walk(thread_current()->pml4, addr, true))
+        return false;
     /* 다 통과했으니 */
     return true;
 }
@@ -216,12 +264,12 @@ void halt(void) { power_off(); }
    만일 프로세스의 Parent가 기다리고 있다면 status 값이 parent에게 전달됨.
    전통적으로 0은 Success, nonzero value는 실패를 의미함 (return). */
 void exit(int status) {
-
+    thread_current()->exit_status = status;
     /* 테스트 통과용 printf */
     printf("%s: exit(%d)\n", thread_current()->name, status); // 이걸 process_exit()으로 옮기면 syn-read가 조금 더 진행됨 (;;)
 
     /* 유저 프로그램이 직접 제공한 status 값을 exit 하는 프로세스/스레드의 exit_status 값으로 저장 */
-    thread_current()->exit_status = status;
+    // thread_current()->exit_status = status;
 
     /* 스레드 죽이기 */
     thread_exit();
@@ -234,19 +282,20 @@ void exit(int status) {
    기본적으로 pml4_for_each()로 메모리와 페이지테이블 구조를 복제하지만, 이 함수에 들어갈 func를 작성해야 함 (duplicate_pte). */
 pid_t fork(const char *thread_name, struct intr_frame *snapshot) {
 
-    if (!pointer_validity_check(thread_name))
-        return false;
+    // if (!pointer_validity_check(thread_name))
+    //     return false;
 
     /* 시스템콜이 발생한 시점의 Parent intr_frame을 저장하고 process_fork로 전달 */
-    pid_t pid = process_fork(thread_name, snapshot);
+    // pid_t pid = process_fork(thread_name, snapshot);
 
-    /* 만일 포크가 실패한다면 */
-    if (pid == TID_ERROR) {
-        return TID_ERROR;
-    }
+    // /* 만일 포크가 실패한다면 */
+    // if (pid == TID_ERROR) {
+    //     return TID_ERROR;
+    // }
 
     /* 포크 성공! ; do_fork에서 child의 %Rax 값을 0으로 만들어줬기 때문에 리턴값은 자동으로 처리됨 */
-    return pid;
+    // return pid;
+    return process_fork(thread_name, snapshot);
 }
 
 /* 현재 구동중인 프로세스를 cmd_line이라는 이름을 가진 executable로 바꾸는 함수 (switch execution state of same process).
@@ -267,7 +316,7 @@ int exec(const char *cmd_line) {
     }
 
     /* Debug ; 성공시 다음 값이 출력되면 안됨 */
-    printf("exec() implementation failed (should never print this or return -1)\n");
+    // printf("exec() implementation failed (should never print this or return -1)\n");
 }
 
 /* 제공되는 child의 pid를 기준으로 무기한 대기하는 함수 ; 타겟 child가 종료되면 exit_status를 리턴.
@@ -290,7 +339,7 @@ int wait(pid_t pid) {
    성공하면 true, 실패하면 false를 반환하면 됨.
    생성에 성공한다고 해서 그 파일을 여는게 아님 (별도의 시스템콜로 진행됨) */
 bool create(const char *file, unsigned initial_size) {
-
+    file_lock_acquire();
     if (!pointer_validity_check(file)) {
         exit(-1);
     }
@@ -298,7 +347,7 @@ bool create(const char *file, unsigned initial_size) {
     /* filesys.c의 filesys_create 함수 사용 ; 이 함수도 성공시 bool 반환 */
     bool success = false;
     success = filesys_create(file, initial_size);
-
+    file_lock_release();
     /* 따라서 그냥 그대로 돌려주면 됨 */
     return success;
 }
@@ -334,10 +383,13 @@ int open(const char *file) {
         exit(-1);
     }
 
+    file_lock_acquire();
+
     /* 파일을 열어보려고 시도하고, 실패시 -1 반환 (struct file 필수) */
     struct file *opened_file;
     opened_file = filesys_open(file); // *file의 주소 file
     if (!opened_file) {
+        file_lock_release();
         return -1;
     }
 
@@ -354,6 +406,7 @@ int open(const char *file) {
         file_close(opened_file);
         return -1;
     }
+    file_lock_release();
 
     /* 여기까지 왔으면 성공했으니 fd값 반환 */
     return fd;
@@ -381,12 +434,20 @@ int filesize(int fd) {
    fd 0은 input_getc()를 통해서 키보드 입력값을 읽어옴. */
 int read(int fd, void *buffer, unsigned size) {
 
-    if (!buffer_validity_check(buffer, size)) {
-
+    if (!buffer_validity_check(buffer, size))
         exit(-1);
-    }
+
+    // buffer는 코드 영역이라 쓰기 불가능하므로 예외 처리 해줘야 함
+    uint64_t *pte = pml4e_walk(thread_current()->pml4, buffer, 0);
+    // read only에서 write 요청한 경우 exit(-1)
+    
+    if (*pte && !is_writable(pte))
+        exit(-1);
+
     /* 읽어온 바이트 수를 기록할 변수 초기화 */
     int read_count = 0;
+
+    file_lock_acquire();
 
     /* fd = 0의 케이스 처리 ; input_getc()는 글자를 하나씩 읽어서 리턴하는 함수 (input.c) */
     if (fd == 0) {
@@ -394,16 +455,37 @@ int read(int fd, void *buffer, unsigned size) {
             ((unsigned char *)buffer)[i] = input_getc();
             read_count++;
         }
-        return read_count;
-    }
+    //     return read_count;
+    // }
 
-    /* fd = 0이 아닐 경우 */
-    struct file *file = get_file_from_fd(fd);
-    if (!file) {
-        return -1; // exit(-1)을 하려다가, 공식 문서에 적힌대로 우선 -1로 바꾼 상태
-    }
-    read_count = file_read(file, buffer, size); // file_read는 size를 (off_t*) 형태로 바라는 것 같은데, 에러가 떠서 일단 일반 사이즈로 넣음
+    // /* fd = 0이 아닐 경우 */
+    // struct file *file = get_file_from_fd(fd);
+    // if (!file) {
+    //     return -1; // exit(-1)을 하려다가, 공식 문서에 적힌대로 우선 -1로 바꾼 상태
+    // }
+    file_lock_release();
+    } else {
+        if (fd < 2) {
+            file_lock_release();
+            return -1;
+        }
+        /* fd = 0이 아닐 경우 */
+        struct file *file = get_file_from_fd(fd);
+        if (!file) {
+            file_lock_release();
+            return -1; // exit(-1)을 하려다가, 공식 문서에 적힌대로 우선 -1로 바꾼 상태
+        }
+        // 커널 풀에서 writable이 0이라도 read write 가 일어나므로, 오로지 read 만 일어날 수 있게 하기 위해 처리
+        struct page *page = spt_find_page(&thread_current()->spt,buffer);
+        if(page && !page->writable){
+            file_lock_release();
+            exit(-1);
+        }
 
+        read_count = file_read(file, buffer, size); // file_read는 size를 (off_t*) 형태로 바라는 것 같은데, 에러가 떠서 일단 일반 사이즈로 넣음
+        file_lock_release();
+    }
+    // read_count = file_read(file, buffer, size); // file_read는 size를 (off_t*) 형태로 바라는 것 같은데, 에러가 떠서 일단 일반 사이즈로 넣음
     return read_count;
 }
 
@@ -422,10 +504,6 @@ int write(int fd, const void *buffer, unsigned size) {
         return -1; // STDIN
     }
 
-    if (!buffer_validity_check(buffer, size)) {
-        exit(-1); // Validity 확인 결과 실패
-    }
-
     if (fd == 1) {
         putbuf(buffer, size);
         return size; // STDOUT
@@ -440,8 +518,10 @@ int write(int fd, const void *buffer, unsigned size) {
         return NULL;
     } // 만일 deny_write라면 실패 반환 (임시, sync_write 등에서 수정 필요할 가능성 높음)
 
+    file_lock_acquire();
     int bytes_written = file_write(file_to_write, buffer, size);
 
+    file_lock_release();
     // sema_up(&filesys_sema);
 
     return bytes_written;

@@ -52,7 +52,7 @@ struct page {
 
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */
-	union {
+	union {		// union: 상속 기능 구현 (오버라이딩을 function pointer로 구현한 것)
 		struct uninit_page uninit;
 		struct anon_page anon;
 		struct file_page file;
@@ -89,15 +89,31 @@ struct page_operations {
  * We don't want to force you to obey any specific design for this struct.
  * All designs up to you for this. */
 struct supplemental_page_table {
-	struct hash *hash_table;
+	struct hash hash_table;
 };
 
+struct lazy_load_aux_file {
+	struct file *file;
+	off_t ofs;
+	uint32_t read_bytes;
+	uint32_t zero_bytes;
+	bool writable;
+	int64_t page_cnt;
+};
+
+struct lazy_load_aux {
+	struct file *file;
+	off_t ofs;
+	uint32_t read_bytes;
+	uint32_t zero_bytes;
+	bool writable;
+};
+ 
 #include "threads/thread.h"
 void supplemental_page_table_init (struct supplemental_page_table *spt);
-bool supplemental_page_table_copy (struct supplemental_page_table *dst,
-		struct supplemental_page_table *src);
+bool supplemental_page_table_copy (struct supplemental_page_table *dst, struct supplemental_page_table *src);
 void supplemental_page_table_kill (struct supplemental_page_table *spt);
-struct page *spt_find_page (struct supplemental_page_table *spt,
+struct page *spt_find_page (struct supplemental_page_table *spt,      
 		void *va);
 bool spt_insert_page (struct supplemental_page_table *spt, struct page *page);
 void spt_remove_page (struct supplemental_page_table *spt, struct page *page);

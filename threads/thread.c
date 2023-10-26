@@ -57,7 +57,7 @@ static tid_t allocate_tid(void);
 /* Thread_start()에서 사용되는 Global Descriptor Table (GDT) ; Thread_init에서 재대로 만들어지기 때문에 사용되는 임시 GDT 개념 */
 
 static uint64_t gdt[3] = {0, 0x00af9a000000ffff, 0x00cf92000000ffff};
-
+struct lock file_lock;
 ////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////// Thread.c 시작 ///////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -80,6 +80,7 @@ void thread_init(void) {
     list_init(&ready_list);
     list_init(&sleep_list);
     list_init(&destruction_req);
+    lock_init(&file_lock);
 
     /* 구동되기 시작한 Initial Thread의 Struct Thread 값을 설정 */
     initial_thread = running_thread();
@@ -615,4 +616,12 @@ static tid_t allocate_tid(void) {
     lock_release(&tid_lock);
 
     return tid;
+}
+
+void file_lock_acquire() {
+    lock_acquire(&file_lock);
+}
+
+void file_lock_release() {
+    lock_release(&file_lock);
 }

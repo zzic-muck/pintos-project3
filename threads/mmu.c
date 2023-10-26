@@ -62,7 +62,7 @@ pdpe_walk (uint64_t *pdpe, const uint64_t va, int create) {
 uint64_t *
 pml4e_walk (uint64_t *pml4e, const uint64_t va, int create) {
 	uint64_t *pte = NULL;
-	int idx = PML4 (va);
+	int idx = PML4 (va);	// pml4 테이블의 어느 엔트리를 사용하는지
 	int allocated = 0;
 	if (pml4e) {
 		uint64_t *pdpe = (uint64_t *) pml4e[idx];

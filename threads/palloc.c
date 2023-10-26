@@ -117,7 +117,8 @@ static void resolve_area_info(struct area *base_mem, struct area *ext_mem) {
  * Basically, give half of memory to kernel, half to user.
  * We push base_mem portion to the kernel as much as possible.
  */
-static void populate_pools(struct area *base_mem, struct area *ext_mem) {
+static void
+populate_pools(struct area *base_mem, struct area *ext_mem) {
     extern char _end;
     void *free_start = pg_round_up(&_end);
 

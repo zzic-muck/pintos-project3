@@ -32,7 +32,6 @@ test_main (void)
      didn't modify it via the mapping. */
   msg ("munmap \"sample.txt\"");
   munmap (map);
-
   /* Read file back. */
   msg ("seek \"sample.txt\"");
   seek (handle, 0);

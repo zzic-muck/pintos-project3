@@ -7,7 +7,7 @@
 #ifdef FILESYS
 #include "filesys/file.h"
 #endif
-
+
 /* Element type.
 
    This must be an unsigned integer type at least as wide as int.
@@ -62,13 +62,11 @@ last_mask (const struct bitmap *b) {
 	int last_bits = b->bit_cnt % ELEM_BITS;
 	return last_bits ? ((elem_type) 1 << last_bits) - 1 : (elem_type) -1;
 }
-
-/* Creation and destruction. */
 
-/* Initializes B to be a bitmap of BIT_CNT bits
-   and sets all of its bits to false.
-   Returns true if success, false if memory allocation
-   failed. */
+/* 생성 및 소멸. */
+
+/* B를 BIT_CNT 비트를 가지는 비트맵으로 초기화하고 모든 비트를 false로 설정한다.
+   메모리 할당이 실패하면 false를 반환하며, 성공하면 true를 반환한다. */
 struct bitmap *
 bitmap_create (size_t bit_cnt) {
 	struct bitmap *b = malloc (sizeof *b);
@@ -84,9 +82,8 @@ bitmap_create (size_t bit_cnt) {
 	return NULL;
 }
 
-/* Creates and returns a bitmap with BIT_CNT bits in the
-   BLOCK_SIZE bytes of storage preallocated at BLOCK.
-   BLOCK_SIZE must be at least bitmap_needed_bytes(BIT_CNT). */
+/* BIT_CNT 비트를 가지는 비트맵을 생성하고 반환한다. 저장소의 BLOCK_SIZE 바이트에 미리 할당된다.
+   BLOCK_SIZE는 반드시 bitmap_needed_bytes(BIT_CNT) 이상이어야 한다. */
 struct bitmap *
 bitmap_create_in_buf (size_t bit_cnt, void *block, size_t block_size UNUSED) {
 	struct bitmap *b = block;
@@ -116,7 +113,7 @@ bitmap_destroy (struct bitmap *b) {
 		free (b);
 	}
 }
-
+
 /* Bitmap size. */
 
 /* Returns the number of bits in B. */
@@ -124,7 +121,7 @@ size_t
 bitmap_size (const struct bitmap *b) {
 	return b->bit_cnt;
 }
-
+
 /* Setting and testing single bits. */
 
 /* Atomically sets the bit numbered IDX in B to VALUE. */
@@ -183,7 +180,7 @@ bitmap_test (const struct bitmap *b, size_t idx) {
 	ASSERT (idx < b->bit_cnt);
 	return (b->bits[elem_idx (idx)] & bit_mask (idx)) != 0;
 }
-
+
 /* Setting and testing multiple bits. */
 
 /* Sets all bits in B to VALUE. */
@@ -194,7 +191,7 @@ bitmap_set_all (struct bitmap *b, bool value) {
 	bitmap_set_multiple (b, 0, bitmap_size (b), value);
 }
 
-/* Sets the CNT bits starting at START in B to VALUE. */
+/* b의 start에서 시작하는 cnt개의 비트를 value로 설정한다. */
 void
 bitmap_set_multiple (struct bitmap *b, size_t start, size_t cnt, bool value) {
 	size_t i;
@@ -260,13 +257,12 @@ bool
 bitmap_all (const struct bitmap *b, size_t start, size_t cnt) {
 	return !bitmap_contains (b, start, cnt, false);
 }
-
-/* Finding set or unset bits. */
 
-/* Finds and returns the starting index of the first group of CNT
-   consecutive bits in B at or after START that are all set to
-   VALUE.
-   If there is no such group, returns BITMAP_ERROR. */
+/* 설정된 비트를 찾아 반환합니다. */
+
+/* B에서 START 이후에 VALUE로 설정된
+ * 연속된 CNT 비트 그룹의 시작 인덱스를 찾아 반환합니다.
+ * 그러한 그룹이 없는 경우 BITMAP_ERROR를 반환합니다. */
 size_t
 bitmap_scan (const struct bitmap *b, size_t start, size_t cnt, bool value) {
 	ASSERT (b != NULL);
@@ -282,13 +278,11 @@ bitmap_scan (const struct bitmap *b, size_t start, size_t cnt, bool value) {
 	return BITMAP_ERROR;
 }
 
-/* Finds the first group of CNT consecutive bits in B at or after
-   START that are all set to VALUE, flips them all to !VALUE,
-   and returns the index of the first bit in the group.
-   If there is no such group, returns BITMAP_ERROR.
-   If CNT is zero, returns 0.
-   Bits are set atomically, but testing bits is not atomic with
-   setting them. */
+/* b에서 start 이후에 value로 설정된 연속된 cnt 비트 그룹을 찾아
+ * 모두 !value로 변경하고, 그 그룹의 첫 번째 비트의 인덱스를 반환합니다.
+ * 그러한 그룹이 없는 경우 BITMAP_ERROR를 반환합니다.
+ * cnt가 0인 경우 0을 반환합니다.
+ * 비트는 원자적으로 설정되지만 비트 테스트는 설정과 원자적으로 동작하지 않습니다. */
 size_t
 bitmap_scan_and_flip (struct bitmap *b, size_t start, size_t cnt, bool value) {
 	size_t idx = bitmap_scan (b, start, cnt, value);
@@ -296,7 +290,7 @@ bitmap_scan_and_flip (struct bitmap *b, size_t start, size_t cnt, bool value) {
 		bitmap_set_multiple (b, idx, cnt, !value);
 	return idx;
 }
-
+
 /* File input and output. */
 
 #ifdef FILESYS
@@ -319,6 +313,7 @@ bitmap_read (struct bitmap *b, struct file *file) {
 	return success;
 }
 
+
 /* Writes B to FILE.  Return true if successful, false
    otherwise. */
 bool
@@ -327,7 +322,7 @@ bitmap_write (const struct bitmap *b, struct file *file) {
 	return file_write_at (file, b->bits, size, 0) == size;
 }
 #endif /* FILESYS */
-
+
 /* Debugging. */
 
 /* Dumps the contents of B to the console as hexadecimal. */

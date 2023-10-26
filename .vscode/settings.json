@@ -58,6 +58,8 @@
         "list.h": "c",
         "intrinsic.h": "c",
         "inspect.h": "c",
-        "mmu.h": "c"
+        "mmu.h": "c",
+        "page_cache.h": "c",
+        "vm.h": "c"
     }
 }
